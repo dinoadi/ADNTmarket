@@ -129,8 +129,8 @@ const kembalian = data.nominalBayar - totalSetelahDiskon;
           metodePembayaran: data.metodePembayaran,
           diskon: data.diskon,
           status: kembalian >= 0,
+        },
       });
-
       // 6. Simpan detail transaksi
       const details = [];
       for (const row of productRows) {

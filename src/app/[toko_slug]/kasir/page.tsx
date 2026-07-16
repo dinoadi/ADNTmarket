@@ -247,9 +247,8 @@ const kembalian = nominalBayar - totalSetelahDiskon;
           metodePembayaran,
           diskon,
           customerId: selectedCustomer?.id ?? null,
+        }),
       });
-
-      const data = await res.json();
 
       if (!data.success) {
         toast.error(data.error ?? "Transaksi gagal");
