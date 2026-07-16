@@ -58,6 +58,7 @@ model Tenant {
   customers       Customer[]
   transactions    Transaction[]
   settings        Setting?
+  payments        Payment[]
 
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -135,6 +136,7 @@ model Transaction {
   nominalBayar    Int              @default(0)
   kembalian       Int              @default(0)
   metodePembayaran String       @default("TUNAI")
+  diskon          Int          @default(0)
   catatan         String?
   status          Boolean          @default(true) // true=berhasil, false=batal
 
@@ -193,3 +195,49 @@ model Setting {
 
   @@map("settings")
 }
+
+// ─── SUBSCRIPTION / SEWA ─────────────────────────────────────
+
+model SubscriptionPlan {
+  id            String    @id @default(cuid())
+  nama          String    // "1 Bulan", "3 Bulan", "1 Tahun"
+  durasiHari    Int       // 30, 90, 365
+  harga         Int       // dalam Rupiah
+  deskripsi     String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  payments      Payment[]
+
+  @@map("subscription_plans")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  planId          String
+  amount          Int      // dalam Rupiah
+  status          String   @default("PENDING") // PENDING | SETTLED | EXPIRED | FAILED
+  metodePembayaran String? // bank_transfer, gopay, qris, dll
+  merchantOrderId String   @unique
+  transactionId   String?  // dari Midtrans
+  snapToken       String?  // Midtrans Snap token
+  paidAt          DateTime?
+  expiredAt       DateTime?
+  pembeliNama     String?
+  pembeliEmail    String?
+  pembeliTelepon  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  plan            SubscriptionPlan  @relation(fields: [planId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([merchantOrderId])
+  @@map("payments")
+}
+
+// Tambah relasi ke Tenant
+// Payment[] udah otomatis dari `tenant` field di atas

@@ -26,6 +26,8 @@ const checkoutSchema = z.object({
   nominalBayar: z.number().min(0),
   metodePembayaran: z.enum(["TUNAI", "QRIS", "TRANSFER", "DEBIT", "LAINNYA"]).default("TUNAI"),
   customerId: z.string().optional().nullable(),
+  diskon: z.number().min(0).default(0),
+  customerId: z.string().optional().nullable(),
 });
 
 //─── POST /api/:slug/transactions — CHECKOUT ────────────────
@@ -92,9 +94,9 @@ export async function POST(request: NextRequest) {
         totalModal += row.qty * row.hargaModal;
       }
 
-      const labaKotor = totalBelanja - totalModal;
-      const kembalian = data.nominalBayar - totalBelanja;
-
+const labaKotor = totalBelanja - totalModal;
+      const totalSetelahDiskon = totalBelanja - data.diskon;
+const kembalian = data.nominalBayar - totalSetelahDiskon;
       // 4. Generate kode transaksi
       const today = new Date();
       const dateStr = today.toISOString().split("T")[0]?.replace(/-/g, "") ?? "";
@@ -125,8 +127,8 @@ export async function POST(request: NextRequest) {
           nominalBayar: data.nominalBayar,
           kembalian,
           metodePembayaran: data.metodePembayaran,
+          diskon: data.diskon,
           status: kembalian >= 0,
-        },
       });
 
       // 6. Simpan detail transaksi
