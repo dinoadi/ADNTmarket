@@ -1,0 +1,195 @@
+// ADNTmarket.app - Multi-Tenant POS Platform
+// Schema: Setiap toko (tenant) memiliki data terisolasi via tenantId
+
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-arm64-openssl-1.1.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── AUTH / USER ───────────────────────────────────────────
+
+// UserRole: SUPER_ADMIN | TENANT_ADMIN | KASIR
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  nama          String
+  role          String    @default("KASIR")
+  isActive      Boolean   @default(true)
+  tenantId      String?   // null untuk SUPER_ADMIN
+
+  // Relasi
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+// ─── TENANT / TOKO ─────────────────────────────────────────
+
+// TenantStatus: AKTIF | SUSPENDED | NONAKTIF
+
+model Tenant {
+  id              String       @id @default(cuid())
+  slug            String       @unique // identifier unik di URL (contoh: "tokopakkris")
+  namaToko        String
+  alamat          String?
+  telepon         String?
+  statusAktif     Boolean      @default(true)
+  status          String    @default("AKTIF")
+  tanggalMulai    DateTime     @default(now())
+  tanggalKedaluwarsa DateTime?
+  logoUrl         String?
+  catatan         String?
+
+  // Relasi
+  users           User[]
+  products        Product[]
+  customers       Customer[]
+  transactions    Transaction[]
+  settings        Setting?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([slug])
+  @@index([statusAktif])
+  @@map("tenants")
+}
+
+// ─── PRODUK ────────────────────────────────────────────────
+
+// KategoriProduk: MAKANAN | MINUMAN | SEMBAKO | SNACK | MINYAK | BERAS | GULA | TELUR | SUSU | ROKOK | OBAT | ALAT_TULIS | KEBERSIHAN | LAINNYA
+
+model Product {
+  id            String         @id @default(cuid())
+  tenantId      String
+  nama          String
+  barcode       String?        @unique // kode barcode produk
+  kategori      String        @default("LAINNYA")
+  hargaJual     Int            @default(0) // dalam Rupiah (integer, hindari float)
+  hargaModal    Int            @default(0)
+  stok          Int            @default(0)
+  satuan        String         @default("pcs") // pcs, kg, liter, dll
+  isActive      Boolean        @default(true)
+  gambarUrl     String?
+
+  // Relasi
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  transactionDetails TransactionDetail[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, barcode])
+  @@index([tenantId, nama])
+  @@map("products")
+}
+
+// ─── PELANGGAN ─────────────────────────────────────────────
+
+model Customer {
+  id          String    @id @default(cuid())
+  tenantId    String
+  nama        String
+  telepon     String?
+  alamat      String?
+  poin        Int       @default(0)
+
+  // Relasi
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  transactions Transaction[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, nama])
+  @@map("customers")
+}
+
+// ─── TRANSAKSI ─────────────────────────────────────────────
+
+// MetodePembayaran: TUNAI | QRIS | TRANSFER | DEBIT | LAINNYA
+
+model Transaction {
+  id              String           @id @default(cuid())
+  tenantId        String
+  customerId      String?
+  kodeTransaksi   String           @unique // format: INV/YYYYMMDD/XXXXX
+  totalBelanja    Int              @default(0) // dalam Rupiah
+  totalModal      Int              @default(0)
+  labaKotor       Int              @default(0)
+  nominalBayar    Int              @default(0)
+  kembalian       Int              @default(0)
+  metodePembayaran String       @default("TUNAI")
+  catatan         String?
+  status          Boolean          @default(true) // true=berhasil, false=batal
+
+  // Relasi
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  customer        Customer?        @relation(fields: [customerId], references: [id])
+  details         TransactionDetail[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([kodeTransaksi])
+  @@map("transactions")
+}
+
+model TransactionDetail {
+  id              String      @id @default(cuid())
+  transactionId   String
+  tenantId        String
+  productId       String
+  namaProduk      String      // snapshot nama produk saat transaksi
+  hargaJual       Int         @default(0) // snapshot harga jual
+  hargaModal      Int         @default(0) // snapshot harga modal
+  qty             Int         @default(1)
+  subtotal        Int         @default(0) // qty * hargaJual
+  subtotalModal   Int         @default(0) // qty * hargaModal
+
+  // Relasi
+  transaction     Transaction @relation(fields: [transactionId], references: [id])
+  product         Product?    @relation(fields: [productId, tenantId], references: [id, tenantId])
+
+  createdAt       DateTime    @default(now())
+
+  @@index([transactionId])
+  @@index([tenantId])
+  @@map("transaction_details")
+}
+
+// ─── PENGATURAN TOKO ───────────────────────────────────────
+
+model Setting {
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  footerStruk       String?  @default("Terima kasih telah berbelanja")
+  headerStruk       String?
+  pajakPersen       Float?   @default(0)
+  cetakStrukOtomatis Boolean @default(true)
+
+  // Relasi
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  @@map("settings")
+}

@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Dark Mode ────────────────────────────────── */
+html {
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* ─── Scrollbar ────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+/* ─── Utility Components ───────────────────────── */
+.card {
+  @apply rounded-lg border border-surface-200 bg-white;
+}
+.dark .card {
+  @apply border-surface-700 bg-surface-900;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50;
+}
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-lg border border-surface-300 bg-white px-5 py-2.5 text-sm font-semibold text-surface-700 transition-colors hover:bg-surface-50;
+}
+.dark .btn-secondary {
+  @apply border-surface-600 bg-surface-800 text-surface-200 hover:bg-surface-700;
+}
+.btn-ghost {
+  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition-colors hover:bg-surface-100;
+}
+.dark .btn-ghost { @apply text-surface-400 hover:bg-surface-800; }
+
+.input {
+  @apply w-full rounded-lg border border-surface-300 bg-white px-4 py-2.5 text-sm text-surface-900 outline-none transition-colors placeholder:text-surface-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20;
+}
+.dark .input {
+  @apply border-surface-600 bg-surface-800 text-surface-100 placeholder:text-surface-500 focus:border-blue-400;
+}
+
+.label { @apply mb-1.5 block text-sm font-medium text-surface-700; }
+.dark .label { @apply text-surface-300; }
+
+/* ─── Print: Thermal 58mm ──────────────────────── */
+.receipt-print-container { display: none; }
+
+@media print {
+  body * { display: none !important; }
+  .receipt-print-container,
+  .receipt-print-container * { display: block !important; }
+  .receipt-print-container {
+    position: fixed; top: 0; left: 0; width: 58mm; padding: 4mm 2mm;
+    font-family: 'Courier New', monospace !important;
+    font-size: 10px !important; line-height: 1.35 !important;
+    color: #000 !important; background: #fff !important;
+  }
+  @page { size: 58mm auto; margin: 0; }
+  .receipt-divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .no-print { display: none !important; }
+}
