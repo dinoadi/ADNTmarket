@@ -151,13 +151,13 @@ export default function LaporanPage() {
 
         {/* Stats Cards */}
         {loading ? (
-          <div className="mb-6 grid grid-cols-4 gap-4">
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-24 animate-pulse rounded-lg bg-surface-100" />
             ))}
           </div>
         ) : stats ? (
-          <div className="mb-6 grid grid-cols-4 gap-4">
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="rounded-lg border border-surface-200 bg-white p-4">
               <p className="text-xs font-medium text-surface-500">Total Omzet</p>
               <p className="mt-1 text-xl font-bold text-emerald-600">

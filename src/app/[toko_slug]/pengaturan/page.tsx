@@ -70,6 +70,8 @@ export default function SettingsPage() {
         body: JSON.stringify({
           footerStruk,
           cetakStrukOtomatis: cetakOtomatis,
+          alamat,
+          telepon,
         }),
       });
 
