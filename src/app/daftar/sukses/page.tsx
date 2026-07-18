@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function SuksesPage() {
+function SuksesContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order_id");
   const status = searchParams.get("status");
@@ -30,57 +30,60 @@ export default function SuksesPage() {
   const isSuccess = status === "pending" || paymentStatus === "PENDING" || paymentStatus === "SETTLED";
 
   return (
-    <div className="min-vh-100 d-flex align-items-center bg-light py-5">
-      <div className="container" style={{ maxWidth: 500 }}>
-        <div className="card shadow-sm text-center">
-          <div className="card-body p-5">
+    <div className="flex min-h-screen items-center justify-center bg-surface-50 py-5">
+      <div className="mx-auto w-full max-w-sm">
+        <div className="rounded-lg border border-surface-200 bg-white text-center shadow-sm">
+          <div className="p-8">
             {loading ? (
               <>
-                <div className="spinner-border text-primary mb-3" />
-                <p>Mengecek status pembayaran...</p>
+                <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+                <p className="text-sm text-surface-500">Mengecek status pembayaran...</p>
               </>
             ) : (
               <>
-                <div className="display-6 mb-3">
-                  {isSuccess ? "✅" : "⏳"}
+                <div className="mb-3 text-4xl">
+                  {isSuccess ? "\u2705" : "\u23F3"}
                 </div>
 
-                <h4 className="fw-bold mb-2">
+                <h4 className="mb-2 text-lg font-bold text-surface-900">
                   {isSuccess ? "Pembayaran Berhasil!" : "Menunggu Pembayaran"}
                 </h4>
 
-                <p className="text-muted mb-1">
+                <p className="mb-1 text-sm text-surface-500">
                   {isSuccess
                     ? "Toko kamu sudah aktif dan siap digunakan."
                     : "Kami masih menunggu konfirmasi pembayaran."}
                 </p>
 
                 {status === "pending" && (
-                  <p className="text-muted small">
+                  <p className="text-xs text-surface-400">
                     Silakan selesaikan pembayaran melalui link yang sudah dikirim.
                   </p>
                 )}
 
                 {paymentStatus === "PENDING" && (
-                  <p className="text-muted small">
+                  <p className="text-xs text-surface-400">
                     Pembayaran sedang diverifikasi, maksimal 1x24 jam.
                   </p>
                 )}
 
-                <p className="small text-muted mb-4">
-                  ID Pesanan: <code>{orderId}</code>
+                <p className="mb-4 text-xs text-surface-400">
+                  ID Pesanan: <code className="rounded bg-surface-100 px-1.5 py-0.5 text-xs font-mono">{orderId}</code>
                 </p>
 
-                <div className="d-grid gap-2">
+                <div className="space-y-2">
                   {tenantSlug && isSuccess && (
                     <Link
                       href={`/${tenantSlug}/kasir`}
-                      className="btn btn-primary fw-bold py-2"
+                      className="block rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-brand-700"
                     >
                       Buka Toko Sekarang
                     </Link>
                   )}
-                  <Link href="/admin" className="btn btn-outline-secondary py-2">
+                  <Link
+                    href="/admin"
+                    className="block rounded-lg border border-surface-200 px-4 py-2.5 text-center text-sm font-medium text-surface-600 transition-colors hover:bg-surface-50"
+                  >
                     Ke Dashboard Admin
                   </Link>
                 </div>
@@ -90,5 +93,28 @@ export default function SuksesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-surface-50 py-5">
+      <div className="mx-auto w-full max-w-sm">
+        <div className="rounded-lg border border-surface-200 bg-white text-center shadow-sm">
+          <div className="p-8">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+            <p className="text-sm text-surface-500">Mengecek status pembayaran...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SuksesPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <SuksesContent />
+    </Suspense>
   );
 }
