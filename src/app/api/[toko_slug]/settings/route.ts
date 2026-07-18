@@ -42,6 +42,9 @@ const updateSettingsSchema = z.object({
   headerStruk: z.string().nullable().optional(),
   pajakPersen: z.number().nullable().optional(),
   cetakStrukOtomatis: z.boolean().optional(),
+  alamat: z.string().nullable().optional(),
+  telepon: z.string().nullable().optional(),
+  namaToko: z.string().optional(),
 });
 
 //─── PATCH /api/:slug/settings ──────────────────────────────
@@ -53,11 +56,39 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const data = updateSettingsSchema.parse(body);
 
-    const settings = await prisma.setting.upsert({
+    // Update settings
+    await prisma.setting.upsert({
       where: { tenantId },
-      update: data,
-      create: { tenantId, ...data },
+      update: {
+        footerStruk: data.footerStruk,
+        headerStruk: data.headerStruk,
+        pajakPersen: data.pajakPersen,
+        cetakStrukOtomatis: data.cetakStrukOtomatis,
+      },
+      create: {
+        tenantId,
+        footerStruk: data.footerStruk ?? "Terima kasih telah berbelanja",
+        headerStruk: data.headerStruk ?? null,
+        pajakPersen: data.pajakPersen ?? null,
+        cetakStrukOtomatis: data.cetakStrukOtomatis ?? true,
+      },
     });
+
+    // Update tenant info jika disertakan
+    const tenantUpdate: Record<string, unknown> = {};
+    if (data.alamat !== undefined) tenantUpdate.alamat = data.alamat;
+    if (data.telepon !== undefined) tenantUpdate.telepon = data.telepon;
+    if (data.namaToko !== undefined) tenantUpdate.namaToko = data.namaToko;
+
+    if (Object.keys(tenantUpdate).length > 0) {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: tenantUpdate,
+      });
+    }
+
+    // Fetch final settings
+    const settings = await prisma.setting.findUnique({ where: { tenantId } });
 
     return successResponse(settings);
   } catch (error) {

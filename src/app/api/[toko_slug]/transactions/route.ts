@@ -27,7 +27,6 @@ const checkoutSchema = z.object({
   metodePembayaran: z.enum(["TUNAI", "QRIS", "TRANSFER", "DEBIT", "LAINNYA"]).default("TUNAI"),
   customerId: z.string().optional().nullable(),
   diskon: z.number().min(0).default(0),
-  customerId: z.string().optional().nullable(),
 });
 
 //─── POST /api/:slug/transactions — CHECKOUT ────────────────

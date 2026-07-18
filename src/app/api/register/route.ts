@@ -79,8 +79,8 @@ export async function POST(req: NextRequest) {
           telepon: telepon || null,
           statusAktif: false, // belum aktif sampai bayar
           status: "NONAKTIF",
-          tanggalMulai: null,
-          tanggalKedaluwarsa: null,
+          tanggalMulai: undefined,
+          tanggalKedaluwarsa: undefined,
         },
       });
 
