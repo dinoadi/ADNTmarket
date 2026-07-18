@@ -131,6 +131,7 @@ export interface TransactionData {
   labaKotor: number;
   nominalBayar: number;
   kembalian: number;
+  diskon: number;
   metodePembayaran: MetodePembayaran;
   status: boolean;
   createdAt: string;
@@ -154,6 +155,7 @@ export interface CheckoutRequest {
   nominalBayar: number;
   metodePembayaran: MetodePembayaran;
   customerId?: string;
+  diskon?: number;
 }
 
 // ─── Settings ───────────────────────────────────────────────
