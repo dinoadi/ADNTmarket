@@ -857,7 +857,8 @@ export default function AdminPage() {
                     disabled
                   />
                 </div>
-              ) : null}
+              )}
+              <div>
               <div>
                 <label className="label">Nama</label>
                 <input
