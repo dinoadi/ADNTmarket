@@ -3,13 +3,17 @@
 // Dokumentasi API: https://sayabayar.com/docs
 // ============================================================
 
+import crypto from "crypto";
+
 const SAYABAYAR_BASE = "https://api.sayabayar.com/v1";
+
+// ── Types ──────────────────────────────────────────────────
 
 interface SayabayarConfig {
   apiKey: string;
 }
 
-interface CreateInvoiceParams {
+export interface CreateInvoiceParams {
   customerName: string;
   customerEmail: string;
   amount: number;
@@ -18,7 +22,7 @@ interface CreateInvoiceParams {
   expiredMinutes?: number; // 60–10080, default 1440 (24 jam)
 }
 
-interface InvoiceResponse {
+export interface InvoiceResponse {
   id: string;
   invoice_number: string;
   amount: number;
@@ -40,6 +44,34 @@ interface InvoiceResponse {
   };
 }
 
+// ── Webhook Types ─────────────────────────────────────────
+
+export type WebhookEvent = "invoice.paid" | "invoice.expired" | "invoice.cancelled";
+
+export interface WebhookPayload {
+  event: WebhookEvent;
+  data: {
+    invoice_id: string;
+    invoice_number: string;
+    amount: number;
+    amount_unique: number;
+    status: string;
+    payment_channel: string;
+    paid_at: string;
+  };
+  timestamp: string;
+}
+
+export interface ParsedWebhookNotification {
+  event: WebhookEvent;
+  invoiceId: string;
+  invoiceNumber: string;
+  amount: number;
+  status: string;
+  paymentChannel: string;
+  paidAt?: Date;
+}
+
 interface SayabayarResponse<T> {
   success: boolean;
   data: T;
@@ -49,11 +81,20 @@ interface SayabayarResponse<T> {
   };
 }
 
+// ── Config ─────────────────────────────────────────────────
+
 function getConfig(): SayabayarConfig {
   return {
     apiKey: process.env.SAYABAYAR_API_KEY || "",
   };
 }
+
+/** Webhook secret dari dashboard Sayabayar */
+export function getWebhookSecret(): string {
+  return process.env.SAYABAYAR_WEBHOOK_SECRET || "";
+}
+
+// ── HTTP Client ────────────────────────────────────────────
 
 async function apiRequest<T>(
   endpoint: string,
@@ -73,18 +114,17 @@ async function apiRequest<T>(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    throw new Error(
-      `Sayabayar API error (${res.status}): ${errorBody}`
-    );
+    throw new Error(`Sayabayar API error (${res.status}): ${errorBody}`);
   }
 
   return res.json();
 }
 
+// ── API Functions ──────────────────────────────────────────
+
 /**
  * Buat invoice pembayaran baru.
- * Channel preference: 'platform' (default) | 'client' (pakai channel aktif)
- * Payment method opsional: 'qris' | 'bca_transfer'
+ * Channel preference: 'client' — user pilih metode bayar sendiri
  */
 export async function createInvoice(
   params: CreateInvoiceParams
@@ -140,6 +180,7 @@ export async function getBalance(): Promise<
 
 /**
  * Generate order ID unik untuk ADNTmarket
+ * Format: ADNT-XXXX-XXXXX
  */
 export function generateOrderId(): string {
   const date = new Date();
@@ -148,25 +189,54 @@ export function generateOrderId(): string {
   return `ADNT-${ts}-${rand}`;
 }
 
+// ── Webhook Handling ───────────────────────────────────────
+
 /**
- * Parse webhook payload dari Sayabayar.
- * Saat status invoice berubah, Sayabayar POST ke webhook endpoint kita.
- * Format: `{ success: true, data: InvoiceResponse }`
+ * Verifikasi signature HMAC-SHA256 dari header X-Webhook-Signature.
+ * Gunakan raw body (sebelum JSON.parse) untuk verifikasi.
  */
-export function parseWebhookPayload(payload: Record<string, unknown>): {
-  invoiceId: string;
-  status: "pending" | "paid" | "expired";
-  amount: number;
-  paidAt?: string;
-} {
-  // Sayabayar mengirim data langsung atau dalam `data` field
-  const data = (payload.data ?? payload) as Record<string, unknown>;
+export function verifyWebhookSignature(
+  rawBody: string,
+  signature: string
+): boolean {
+  const secret = getWebhookSecret();
+  if (!secret) {
+    console.warn("SAYABAYAR_WEBHOOK_SECRET not set — skipping signature verification");
+    return true; // pasrah kalau secret belum diset
+  }
+
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, "hex"),
+      Buffer.from(expected, "hex")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse webhook payload dari Sayabayar ke format yang seragam.
+ * Format: { event: "invoice.paid", data: { invoice_id, ... }, timestamp }
+ */
+export function parseWebhookPayload(
+  payload: WebhookPayload
+): ParsedWebhookNotification {
+  const { event, data } = payload;
 
   return {
-    invoiceId: (data.id ?? data.invoice_id) as string,
-    status: (data.status as "pending" | "paid" | "expired") ?? "pending",
-    amount: Number(data.amount ?? 0),
-    paidAt: data.paid_at as string | undefined,
+    event,
+    invoiceId: data.invoice_id,
+    invoiceNumber: data.invoice_number,
+    amount: data.amount,
+    status: data.status,
+    paymentChannel: data.payment_channel,
+    paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
   };
 }
 
@@ -183,6 +253,8 @@ export function mapPaymentStatus(
       return "EXPIRED";
     case "pending":
       return "PENDING";
+    case "cancelled":
+      return "FAILED";
     default:
       return "PENDING";
   }
