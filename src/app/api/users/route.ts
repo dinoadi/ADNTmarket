@@ -72,8 +72,8 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6, "Password minimal 6 karakter"),
   nama: z.string().min(1, "Nama wajib diisi"),
-  role: z.enum(["TENANT_ADMIN", "KASIR"]),
-  tenantId: z.string().min(1, "Tenant wajib dipilih"),
+  role: z.enum(["SUPER_ADMIN", "TENANT_ADMIN", "KASIR"]),
+  tenantId: z.string().optional(),
 });
 
 //─── POST /api/users ─────────────────────────────────────────
@@ -93,10 +93,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Cek tenant exists
-    const tenant = await prisma.tenant.findUnique({ where: { id: data.tenantId } });
-    if (!tenant) {
-      return errorResponse("Tenant tidak ditemukan", 404);
+    // SUPER_ADMIN tidak perlu tenantId
+    let tenantId: string | undefined | null = data.tenantId;
+    if (data.role === "SUPER_ADMIN") {
+      tenantId = null;
+    } else {
+      // Cek tenant exists (untuk role yang butuh tenant)
+      if (!tenantId) {
+        return errorResponse("Tenant wajib dipilih untuk role ini", 400);
+      }
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+      if (!tenant) {
+        return errorResponse("Tenant tidak ditemukan", 404);
+      }
     }
 
     // Cek email duplicate
@@ -113,7 +122,7 @@ export async function POST(request: NextRequest) {
         passwordHash,
         nama: data.nama,
         role: data.role,
-        tenantId: data.tenantId,
+        tenantId: tenantId ?? null,
       },
       select: {
         id: true,

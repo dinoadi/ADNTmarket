@@ -833,8 +833,8 @@ export default function AdminPage() {
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-surface-900">
             <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-white">Tambah Pengguna Baru</h3>
             <div className="space-y-3">
-              {/* Select Toko — hanya untuk SUPER_ADMIN */}
-              {isSuperAdmin ? (
+              {/* Select Toko — tidak untuk SUPER_ADMIN (tidak punya tenant) */}
+              {cuForm.role === "SUPER_ADMIN" ? null : isSuperAdmin ? (
                 <div>
                   <label className="label">Toko</label>
                   <select
@@ -857,8 +857,7 @@ export default function AdminPage() {
                     disabled
                   />
                 </div>
-              )}
-              <div>
+              ) : null}
                 <label className="label">Nama</label>
                 <input
                   value={cuForm.nama}
@@ -892,12 +891,12 @@ export default function AdminPage() {
                 {isSuperAdmin ? (
                   <select
                     value={cuForm.role}
-                    onChange={(e) => setCuForm((f) => ({ ...f, role: e.target.value }))}
+                    onChange={(e) => setCuForm((f) => ({ ...f, role: e.target.value, tenantId: e.target.value === "SUPER_ADMIN" ? "" : f.tenantId }))}
                     className="input"
                   >
                     <option value="KASIR">Kasir</option>
                     <option value="TENANT_ADMIN">Admin Toko</option>
-                  </select>
+                    <option value="SUPER_ADMIN">Super Admin</option>
                 ) : (
                   <input
                     value="Kasir"
@@ -912,7 +911,7 @@ export default function AdminPage() {
                 </button>
                 <button
                   onClick={handleCreateUser}
-                  disabled={!cuForm.tenantId || !cuForm.nama || !cuForm.email || cuForm.password.length < 6}
+                  disabled={(cuForm.role !== "SUPER_ADMIN" && !cuForm.tenantId) || !cuForm.nama || !cuForm.email || cuForm.password.length < 6}
                   className="btn-primary text-sm"
                 >
                   {cuLoading ? "Membuat..." : "Buat Pengguna"}
