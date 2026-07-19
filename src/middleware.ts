@@ -17,6 +17,10 @@ const PUBLIC_PATHS = [
   "/api/users",
   "/api/subscription-plans",
   "/api/admin",
+  "/daftar",
+  "/masuk",
+  "/admin",
+  "/",
 ];
 
 export async function middleware(request: NextRequest) {

@@ -10,6 +10,49 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding ADNTmarket database...\n");
 
+  // ── 0. Subscription Plans (Rp 1 for testing payment) ─────
+  const plans = [
+    {
+      nama: "1 Bulan",
+      durasiHari: 30,
+      harga: 1,
+      deskripsi: "Coba 1 bulan dengan harga spesial testing",
+    },
+    {
+      nama: "6 Bulan",
+      durasiHari: 180,
+      harga: 1,
+      deskripsi: "Coba 6 bulan dengan harga spesial testing",
+    },
+    {
+      nama: "1 Tahun",
+      durasiHari: 365,
+      harga: 1,
+      deskripsi: "Coba 1 tahun dengan harga spesial testing",
+    },
+  ];
+
+  for (const plan of plans) {
+    await prisma.subscriptionPlan.upsert({
+      where: { id: plan.nama },
+      update: {
+        harga: plan.harga,
+        durasiHari: plan.durasiHari,
+        deskripsi: plan.deskripsi,
+        isActive: true,
+      },
+      create: {
+        id: plan.nama,
+        nama: plan.nama,
+        durasiHari: plan.durasiHari,
+        harga: plan.harga,
+        deskripsi: plan.deskripsi,
+        isActive: true,
+      },
+    });
+  }
+  console.log("✅ 3 subscription plans (Rp 1 each) created");
+
   // ── 1. Super Admin ─────────────────────────────────────
   const superAdminPassword = await bcrypt.hash("admin123", 12);
   const superAdmin = await prisma.user.upsert({
@@ -144,6 +187,10 @@ async function main() {
   console.log("\n📧 Tenant Admin (Toko Pak Kris):");
   console.log("   Email:    kris@tokopakkris.com");
   console.log("   Password: kasir123");
+  console.log("\n💳 Subscription Plans (Testing):");
+  console.log("   1 Bulan  — Rp 1");
+  console.log("   6 Bulan  — Rp 1");
+  console.log("   1 Tahun  — Rp 1");
   console.log("\n🔗 Akses:");
   console.log("   Tenant:   http://localhost:3000/tokopakkris");
   console.log("   Admin:    http://localhost:3000/admin");
