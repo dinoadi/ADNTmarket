@@ -11,3 +11,6 @@ prisma:query DEALLOCATE ALL
 prisma:query SELECT "public"."subscription_plans"."id", "public"."subscription_plans"."nama", "public"."subscription_plans"."durasiHari", "public"."subscription_plans"."harga", "public"."subscription_plans"."deskripsi", "public"."subscription_plans"."isActive", "public"."subscription_plans"."createdAt", "public"."subscription_plans"."updatedAt" FROM "public"."subscription_plans" WHERE "public"."subscription_plans"."isActive" = $1 ORDER BY "public"."subscription_plans"."durasiHari" ASC OFFSET $2
 prisma:query COMMIT
  GET /api/subscription-plans 200 in 1689ms
+   Reload env: .env
+ ✓ Compiled in 1693ms (203 modules)
+ ✓ Compiled in 122ms (203 modules)
