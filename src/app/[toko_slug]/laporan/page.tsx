@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { formatRupiah, formatDate } from "@/lib/utils";
+import { Download } from "lucide-react";
 import type { StatsData, TransactionData } from "@/types";
 
 type Periode = "today" | "week" | "month" | "custom";
@@ -97,16 +98,20 @@ export default function LaporanPage() {
             </button>
             <h1 className="text-lg font-bold text-surface-900">Laporan Keuangan</h1>
           </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem("adnt_token");
-              localStorage.removeItem("adnt_user");
-              router.push(`/${slug}`);
-            }}
-            className="text-xs text-red-600 hover:text-red-700"
-          >
-            Keluar
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/${slug}/transactions/export?periode=${periode}${periode === "custom" && customStart ? `&startDate=${customStart}` : ""}${periode === "custom" && customEnd ? `&endDate=${customEnd}` : ""}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-surface-200 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 hover:bg-surface-50 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download CSV
+            </a>
+            <button
+              onClick={() => { localStorage.removeItem("adnt_token"); localStorage.removeItem("adnt_user"); router.push(`/${slug}`); }}
+              className="text-xs text-red-600 hover:text-red-700"
+            >
+              Keluar
+            </button>
         </div>
       </div>
 

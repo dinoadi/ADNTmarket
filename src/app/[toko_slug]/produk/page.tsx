@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { formatRupiah } from "@/lib/utils";
+import type { ProductData, KategoriProduk } from "@/types";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { formatRupiah } from "@/lib/utils";
+import type { ProductData, KategoriProduk } from "@/types";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/utils";
@@ -55,6 +63,11 @@ export default function ProdukPage() {
   const [kategori, setKategori] = useState<KategoriProduk | "">("");
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<ProductForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; updated: number; errors: number; total: number; details: any[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -150,6 +163,56 @@ export default function ProdukPage() {
       } else { toast.error(data.error ?? "Gagal menghapus"); }
     } catch { toast.error("Gagal menghapus produk"); }
   };
+    if (!confirm(`Hapus produk "${nama}"?`)) return;
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/${slug}/products/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Produk dihapus");
+        fetchProducts();
+      } else { toast.error(data.error ?? "Gagal menghapus"); }
+    } catch { toast.error("Gagal menghapus produk"); }
+  };
+
+  const handleExport = () => {
+    window.open(`/api/${slug}/products/export`, "_blank");
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/${slug}/products/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setImportResult(data.data);
+        toast.success(`Import selesai: ${data.data.imported} baru, ${data.data.updated} diperbarui`);
+        fetchProducts();
+      } else {
+        toast.error(data.error ?? "Gagal import");
+      }
+    } catch {
+      toast.error("Gagal import produk");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-50">
@@ -166,6 +229,25 @@ export default function ProdukPage() {
             <h1 className="text-lg font-bold text-surface-900">Produk</h1>
           </div>
           <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file" accept=".csv" className="hidden"
+              onChange={handleImportFile}
+            />
+            <button
+              onClick={handleImportClick}
+              className="rounded-lg border border-surface-200 px-3 py-1.5 text-sm font-medium text-surface-600 hover:bg-surface-100 disabled:opacity-50"
+              disabled={importing}
+            >
+              {importing ? "Mengimport..." : "Import"}
+            </button>
+            <button
+              onClick={handleExport}
+              className="rounded-lg border border-surface-200 px-3 py-1.5 text-sm font-medium text-surface-600 hover:bg-surface-100"
+            >
+              Export
+            </button>
+            <button
             <button
               onClick={() => router.push(`/${slug}/kasir`)}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-surface-600 hover:bg-surface-100"
@@ -358,6 +440,41 @@ export default function ProdukPage() {
                 >{saving ? "Menyimpan..." : editingId ? "Simpan" : "Tambah"}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Result Modal */}
+      {importResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setImportResult(null)} />
+          <div className="relative w-full max-w-md animate-slide-up rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                <svg className="h-7 w-7 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-surface-900">Import Selesai</h3>
+              <p className="mt-1 text-sm text-surface-500">
+                {importResult.imported} ditambahkan, {importResult.updated} diperbarui, {importResult.errors} gagal
+              </p>
+            </div>
+            {importResult.errors > 0 && (
+              <div className="mb-4 max-h-40 space-y-1 overflow-y-auto rounded-lg bg-red-50 p-3">
+                {importResult.details.filter((d: any) => d.status === "GAGAL").map((d: any, i: number) => (
+                  <p key={i} className="text-xs text-red-700">
+                    Baris {d.baris}: {d.nama} — {d.pesan}
+                  </p>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setImportResult(null)}
+              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-bold text-white hover:bg-brand-700"
+            >
+              Tutup
+            </button>
           </div>
         </div>
       )}
