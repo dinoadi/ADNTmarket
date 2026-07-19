@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
+import { ArrowRight, Store } from "lucide-react";
 
 export default function TenantLoginPage() {
   const params = useParams();
@@ -12,24 +14,20 @@ export default function TenantLoginPage() {
   const [tenantName, setTenantName] = useState("");
   const [tenantLoading, setTenantLoading] = useState(true);
   const [tenantError, setTenantError] = useState("");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Cek tenant availability
   useEffect(() => {
     async function checkTenant() {
       try {
         const res = await fetch(`/api/tenant-check?slug=${slug}`);
         const data = await res.json();
-
         if (!data.success) {
           setTenantError(data.error ?? "Toko tidak ditemukan");
           setTenantLoading(false);
           return;
         }
-
         setTenantName(data.data.namaToko);
       } catch {
         setTenantError("Gagal memuat data toko");
@@ -37,33 +35,26 @@ export default function TenantLoginPage() {
         setTenantLoading(false);
       }
     }
-
     if (slug) checkTenant();
   }, [slug]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
       if (!data.success) {
         toast.error(data.error ?? "Login gagal");
         setLoading(false);
         return;
       }
-
-      // Simpan token & user
       localStorage.setItem("adnt_token", data.data.token);
       localStorage.setItem("adnt_user", JSON.stringify(data.data.user));
-
       toast.success("Login berhasil");
       router.push(`/${slug}/kasir`);
     } catch {
@@ -73,22 +64,22 @@ export default function TenantLoginPage() {
     }
   };
 
-  // Tenant tidak ditemukan
   if (!tenantLoading && tenantError) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-warm-50 px-4 dark:bg-surface-950">
         <div className="w-full max-w-md text-center">
-          <div className="mb-6 text-6xl font-bold text-surface-200">404</div>
-          <h1 className="mb-2 text-xl font-bold text-surface-800">
+          <p className="font-serif text-8xl font-bold text-warm-200 dark:text-surface-800">
+            404
+          </p>
+          <h1 className="mt-4 font-serif text-2xl font-bold text-surface-900 dark:text-warm-100">
             Toko Tidak Ditemukan
           </h1>
-          <p className="mb-6 text-sm text-surface-500">
-            Toko dengan nama &quot;{slug}&quot; tidak ditemukan. Periksa kembali
-            nama toko Anda.
+          <p className="mt-2 text-sm text-surface-500 dark:text-warm-400">
+            Toko dengan nama &quot;{slug}&quot; tidak ditemukan. Periksa kembali nama toko Anda.
           </p>
           <button
             onClick={() => router.push("/")}
-            className="rounded-md bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+            className="btn-primary mt-8"
           >
             Kembali ke Beranda
           </button>
@@ -98,32 +89,37 @@ export default function TenantLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4">
-      <div className="w-full max-w-md animate-fade-in">
-        {/* Header */}
+    <div className="flex min-h-screen flex-col items-center justify-center bg-warm-50 px-4 dark:bg-surface-950">
+      <div className="w-full max-w-sm animate-fade-in">
         <div className="mb-8 text-center">
+          {/* Logo */}
+          <Link href="/" className="mx-auto mb-6 flex w-fit items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-xs font-serif font-bold text-white">
+              A
+            </div>
+          </Link>
+
           {tenantLoading ? (
-            <div className="h-8 w-48 animate-pulse rounded bg-surface-200 mx-auto" />
+            <div className="mx-auto h-7 w-48 animate-pulse rounded bg-warm-200 dark:bg-surface-700" />
           ) : (
             <>
-              <h1 className="text-2xl font-bold text-surface-900">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-950/30">
+                <Store className="h-6 w-6" />
+              </div>
+              <h1 className="font-serif text-2xl font-bold text-surface-900 dark:text-warm-100">
                 {tenantName}
               </h1>
-              <p className="mt-1 text-sm text-surface-500">
+              <p className="mt-1 text-sm text-surface-500 dark:text-warm-400">
                 Masuk ke sistem kasir
               </p>
             </>
           )}
         </div>
 
-        {/* Form Login */}
-        <div className="rounded-lg border border-surface-200 bg-white p-6 shadow-sm">
+        <div className="card p-6 sm:p-8">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label
-                htmlFor="email"
-                className="mb-1.5 block text-sm font-medium text-surface-700"
-              >
+              <label className="label" htmlFor="email">
                 Email
               </label>
               <input
@@ -134,15 +130,11 @@ export default function TenantLoginPage() {
                 placeholder="admin@tokokamu.com"
                 required
                 autoFocus
-                className="w-full rounded-md border border-surface-300 px-4 py-2.5 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                className="input"
               />
             </div>
-
             <div>
-              <label
-                htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-surface-700"
-              >
+              <label className="label" htmlFor="password">
                 Password
               </label>
               <input
@@ -152,19 +144,38 @@ export default function TenantLoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Masukkan password"
                 required
-                className="w-full rounded-md border border-surface-300 px-4 py-2.5 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                className="input"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || tenantLoading}
-              className="w-full rounded-md bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+              className="btn-primary w-full justify-center gap-2"
             >
-              {loading ? "Memproses..." : "Masuk"}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Memproses...
+                </span>
+              ) : (
+                <>
+                  Masuk ke Kasir
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </button>
           </form>
         </div>
+
+        <p className="mt-6 text-center text-xs text-surface-500 dark:text-warm-400">
+          <Link href="/masuk" className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400">
+            Login sebagai admin
+          </Link>
+        </p>
       </div>
     </div>
   );
