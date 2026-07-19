@@ -858,6 +858,7 @@ export default function AdminPage() {
                   />
                 </div>
               ) : null}
+              <div>
                 <label className="label">Nama</label>
                 <input
                   value={cuForm.nama}
