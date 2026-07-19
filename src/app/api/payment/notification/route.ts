@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         // Cari payment yang merchantOrderId mengandung invoice_number
         const allPayments = await prisma.payment.findMany({
           where: { sayabayarInvoiceId: null },
-          include: { plan: true },
+          include: { plan: true, tenant: true },
           take: 20,
           orderBy: { createdAt: "desc" },
         });

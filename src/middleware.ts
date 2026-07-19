@@ -12,6 +12,11 @@ const PUBLIC_PATHS = [
   "/_next",
   "/favicon",
   "/api/tenants",
+  "/api/payment/",
+  "/api/register",
+  "/api/users",
+  "/api/subscription-plans",
+  "/api/admin",
 ];
 
 export async function middleware(request: NextRequest) {
