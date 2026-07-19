@@ -25,7 +25,7 @@ const KATEGORI_LIST: Array<{ label: string; value: KategoriProduk | "" }> = [
 
 interface ProductForm {
   nama: string;
-  barcode: string;
+  // barcode removed -- input manual
   kategori: KategoriProduk;
   hargaJual: number;
   hargaModal: number;
@@ -35,7 +35,7 @@ interface ProductForm {
 
 const emptyForm: ProductForm = {
   nama: "",
-  barcode: "",
+  // barcode removed
   kategori: "LAINNYA",
   hargaJual: 0,
   hargaModal: 0,
@@ -97,7 +97,7 @@ export default function ProdukPage() {
   const openEdit = (product: ProductData) => {
     setForm({
       nama: product.nama,
-      barcode: product.barcode ?? "",
+      // barcode: product.barcode ?? "", -- removed
       kategori: product.kategori,
       hargaJual: product.hargaJual,
       hargaModal: product.hargaModal,
@@ -240,7 +240,7 @@ export default function ProdukPage() {
                     <tr key={p.id} className="hover:bg-surface-50 transition-colors">
                       <td className="px-4 py-3 sm:px-6">
                         <div className="font-medium text-surface-900">{p.nama}</div>
-                        {p.barcode && <div className="text-xs text-surface-400">Barcode: {p.barcode}</div>}
+                        {/* barcode display removed -- input manual */}
                       </td>
                       <td className="px-4 py-3 sm:px-6">
                         <span className="inline-block rounded-full bg-surface-100 px-2.5 py-0.5 text-xs font-medium text-surface-600">
@@ -306,25 +306,16 @@ export default function ProdukPage() {
                   className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-surface-600">Kategori</label>
-                  <select value={form.kategori}
-                    onChange={(e) => setForm({ ...form, kategori: e.target.value as KategoriProduk })}
-                    className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  >
-                    {KATEGORI_LIST.filter((k) => k.value).map((k) => (
-                      <option key={k.value} value={k.value}>{k.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-surface-600">Barcode</label>
-                  <input type="text" value={form.barcode}
-                    onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                    className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-surface-600">Kategori</label>
+                <select value={form.kategori}
+                  onChange={(e) => setForm({ ...form, kategori: e.target.value as KategoriProduk })}
+                  className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                >
+                  {KATEGORI_LIST.filter((k) => k.value).map((k) => (
+                    <option key={k.value} value={k.value}>{k.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

@@ -5,8 +5,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
 import { successResponse, createdResponse, errorResponse, handleApiError } from "@/lib/api-response";
+import { getAuthUser } from "@/lib/auth-utils";
 
 const kategoriList = [
   "MAKANAN", "MINUMAN", "SEMBAKO", "SNACK", "MINYAK",
@@ -14,17 +14,13 @@ const kategoriList = [
   "OBAT", "ALAT_TULIS", "KEBERSIHAN", "LAINNYA",
 ] as const;
 
-//─── Helper: get tenant from middleware header ──────────────
-function getTenantInfo(request: NextRequest) {
-  const tenantId = request.headers.get("x-tenant-id");
-  const tenantSlug = request.headers.get("x-tenant-slug");
-  return { tenantId, tenantSlug };
-}
+
 
 //─── GET /api/:slug/products ────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
-    const { tenantId } = getTenantInfo(request);
+    const auth = getAuthUser(request);
+    const tenantId = auth.tenantId;
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 404);
 
     const { searchParams } = request.nextUrl;
@@ -38,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { nama: { contains: search, mode: "insensitive" } },
-        { barcode: { contains: search, mode: "insensitive" } },
+        { nama: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -80,21 +76,14 @@ const createProductSchema = z.object({
 //─── POST /api/:slug/products ───────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const { tenantId } = getTenantInfo(request);
+    const auth = getAuthUser(request);
+    const tenantId = auth.tenantId;
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 404);
 
     const body = await request.json();
     const data = createProductSchema.parse(body);
 
-    // Cek duplicate barcode
-    if (data.barcode) {
-      const existing = await prisma.product.findFirst({
-        where: { barcode: data.barcode, tenantId },
-      });
-      if (existing) {
-        return errorResponse("Barcode sudah terdaftar", 409);
-      }
-    }
+
 
     const product = await prisma.product.create({
       data: {

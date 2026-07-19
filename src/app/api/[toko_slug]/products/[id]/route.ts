@@ -6,6 +6,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
+import { getAuthUser } from "@/lib/auth-utils";
 
 const kategoriList = [
   "MAKANAN", "MINUMAN", "SEMBAKO", "SNACK", "MINYAK",
@@ -13,12 +14,7 @@ const kategoriList = [
   "OBAT", "ALAT_TULIS", "KEBERSIHAN", "LAINNYA",
 ] as const;
 
-function getTenantInfo(request: NextRequest) {
-  return {
-    tenantId: request.headers.get("x-tenant-id"),
-    tenantSlug: request.headers.get("x-tenant-slug"),
-  };
-}
+
 
 //─── GET /api/:slug/products/:id ────────────────────────────
 export async function GET(
@@ -26,7 +22,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { tenantId } = getTenantInfo(request);
+    const auth = getAuthUser(request);
+    const tenantId = auth.tenantId;
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 404);
 
     const product = await prisma.product.findFirst({
@@ -45,7 +42,7 @@ export async function GET(
 
 const updateProductSchema = z.object({
   nama: z.string().min(1).optional(),
-  barcode: z.string().nullable().optional(),
+  // barcode: z.string().nullable().optional(), -- removed, input manual
   kategori: z.enum(kategoriList).optional(),
   hargaJual: z.number().min(0).optional(),
   hargaModal: z.number().min(0).optional(),
@@ -60,7 +57,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { tenantId } = getTenantInfo(request);
+    const auth = getAuthUser(request);
+    const tenantId = auth.tenantId;
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 404);
 
     const body = await request.json();
@@ -91,7 +89,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { tenantId } = getTenantInfo(request);
+    const auth = getAuthUser(request);
+    const tenantId = auth.tenantId;
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 404);
 
     const existing = await prisma.product.findFirst({
