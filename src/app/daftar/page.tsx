@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowRight, Check, Building2, Globe, MapPin, Phone, Mail, Lock } from "lucide-react";
 
 interface Plan {
   id: string;
@@ -16,8 +18,6 @@ export default function DaftarPage() {
   const [step, setStep] = useState<"form" | "loading">("form");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string>("");
-
-  // Form state
   const [form, setForm] = useState({
     slug: "",
     namaToko: "",
@@ -28,7 +28,6 @@ export default function DaftarPage() {
   });
   const [error, setError] = useState("");
 
-  // Ambil daftar paket
   useEffect(() => {
     fetch("/api/subscription-plans")
       .then((res) => res.json())
@@ -67,10 +66,8 @@ export default function DaftarPage() {
       const orderId = data.data.payment.orderId;
 
       if (paymentUrl) {
-        // Redirect ke halaman pembayaran Sayabayar
         window.location.href = paymentUrl;
       } else {
-        // Gagal generate payment URL, arahkan ke sukses manual
         router.push(`/daftar/sukses?order_id=${orderId}&status=manual`);
       }
     } catch {
@@ -82,152 +79,223 @@ export default function DaftarPage() {
   const formatRupiah = (n: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(n);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-50 to-blue-50 py-8">
-      <div className="mx-auto w-full max-w-lg px-4">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-surface-900">
-            {process.env.NEXT_PUBLIC_APP_NAME || "ADNTmarket"}
-          </h1>
-          <p className="mt-1 text-sm text-surface-500">Daftarkan Toko Baru</p>
-        </div>
+  const InputField = ({
+    label,
+    icon: Icon,
+    ...props
+  }: {
+    label: string;
+    icon?: React.ElementType;
+    type?: string;
+    required?: boolean;
+    placeholder?: string;
+    value: string;
+    minLength?: number;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  }) => (
+    <div>
+      <label className="label">{label}</label>
+      <div className="relative">
+        {Icon && (
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-surface-400 dark:text-surface-500">
+            <Icon className="h-4 w-4" />
+          </div>
+        )}
+        <input
+          className={`input ${Icon ? "pl-10" : ""}`}
+          {...props}
+        />
+      </div>
+    </div>
+  );
 
-        <div className="rounded-2xl border border-surface-200 bg-white p-6 shadow-sm">
+  return (
+    <div className="min-h-screen bg-warm-50 dark:bg-surface-950">
+      {/* ─── Navbar ─────────────── */}
+      <nav className="border-b border-warm-200 bg-white/80 backdrop-blur-xl dark:border-surface-800 dark:bg-surface-950/80">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-xs font-serif font-bold text-white">
+              A
+            </div>
+            <span className="font-serif text-base font-bold text-surface-900 dark:text-warm-100">
+              ADNTmarket
+            </span>
+          </Link>
+          <Link
+            href="/masuk"
+            className="text-sm font-semibold text-surface-500 transition-colors hover:text-surface-900 dark:text-warm-400 dark:hover:text-warm-100"
+          >
+            Masuk
+          </Link>
+        </div>
+      </nav>
+
+      {/* ─── Form ──────────────── */}
+      <div className="mx-auto w-full max-w-lg px-6 py-12">
+        <h1 className="font-serif text-2xl font-bold text-surface-900 dark:text-warm-100">
+          Daftarkan Toko Baru
+        </h1>
+        <p className="mt-1.5 text-sm text-surface-500 dark:text-warm-400">
+          Isi data toko dan pilih paket untuk memulai.
+        </p>
+
+        <div className="card mt-8 p-6 sm:p-8">
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
+              {error}
+            </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Data Toko */}
-            <h6 className="mb-3 text-sm font-bold text-surface-800">Data Toko</h6>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-surface-600">Nama Toko</label>
-              <input
-                type="text"
-                required
-                placeholder="Toko ABC"
-                value={form.namaToko}
-                onChange={(e) => setForm({ ...form, namaToko: e.target.value })}
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-surface-600">
-                Slug Toko <span className="text-surface-400">(untuk URL: namaslug.adntmarket.app)</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="toko-abc"
-                value={form.slug}
-                onChange={(e) =>
-                  setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })
-                }
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-surface-600">Alamat (opsional)</label>
-              <input
-                type="text"
-                placeholder="Jl. Contoh No. 123"
-                value={form.alamat}
-                onChange={(e) => setForm({ ...form, alamat: e.target.value })}
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-surface-600">Telepon (opsional)</label>
-              <input
-                type="tel"
-                placeholder="08123456789"
-                value={form.telepon}
-                onChange={(e) => setForm({ ...form, telepon: e.target.value })}
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
+            <div>
+              <h2 className="mb-4 font-serif text-lg font-bold text-surface-900 dark:text-warm-100">
+                Data Toko
+              </h2>
+              <div className="space-y-4">
+                <InputField
+                  label="Nama Toko"
+                  icon={Building2}
+                  type="text"
+                  required
+                  placeholder="Toko ABC"
+                  value={form.namaToko}
+                  onChange={(e) => setForm({ ...form, namaToko: e.target.value })}
+                />
+                <InputField
+                  label="Slug Toko"
+                  icon={Globe}
+                  type="text"
+                  required
+                  placeholder="toko-abc"
+                  value={form.slug}
+                  onChange={(e) =>
+                    setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })
+                  }
+                />
+                <p className="-mt-2 text-[11px] text-surface-400 dark:text-surface-500">
+                  URL toko: adntmarket.app/{form.slug || "slug"}
+                </p>
+                <InputField
+                  label="Alamat"
+                  icon={MapPin}
+                  type="text"
+                  placeholder="Jl. Contoh No. 123"
+                  value={form.alamat}
+                  onChange={(e) => setForm({ ...form, alamat: e.target.value })}
+                />
+                <InputField
+                  label="Telepon"
+                  icon={Phone}
+                  type="tel"
+                  placeholder="08123456789"
+                  value={form.telepon}
+                  onChange={(e) => setForm({ ...form, telepon: e.target.value })}
+                />
+              </div>
             </div>
 
             {/* Akun Admin */}
-            <h6 className="mb-3 mt-6 text-sm font-bold text-surface-800">Akun Admin Toko</h6>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-surface-600">Email</label>
-              <input
-                type="email"
-                required
-                placeholder="admin@tokoabc.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-surface-600">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                placeholder="Minimal 6 karakter"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
+            <div>
+              <h2 className="mb-4 font-serif text-lg font-bold text-surface-900 dark:text-warm-100">
+                Akun Admin
+              </h2>
+              <div className="space-y-4">
+                <InputField
+                  label="Email"
+                  icon={Mail}
+                  type="email"
+                  required
+                  placeholder="admin@tokoabc.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+                <InputField
+                  label="Password"
+                  icon={Lock}
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="Minimal 6 karakter"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+              </div>
             </div>
 
             {/* Pilih Paket */}
-            <h6 className="mb-3 mt-6 text-sm font-bold text-surface-800">Pilih Paket Sewa</h6>
-            {plans.length === 0 ? (
-              <p className="text-sm text-surface-400">Memuat paket...</p>
-            ) : (
-              <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {plans.map((plan) => (
-                  <div
-                    key={plan.id}
-                    onClick={() => setSelectedPlan(plan.id)}
-                    className={`cursor-pointer rounded-xl border-2 p-4 text-center transition-all ${
-                      selectedPlan === plan.id
-                        ? "border-brand-500 bg-brand-50"
-                        : "border-surface-200 bg-white hover:border-surface-300"
-                    }`}
-                  >
-                    <h6 className="mb-1 text-sm font-bold text-surface-800">{plan.nama}</h6>
-                    <p className="mb-1 text-lg font-bold text-brand-600">{formatRupiah(plan.harga)}</p>
-                    <small className="text-surface-400">{plan.deskripsi || `${plan.durasiHari} hari`}</small>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div>
+              <h2 className="mb-4 font-serif text-lg font-bold text-surface-900 dark:text-warm-100">
+                Pilih Paket
+              </h2>
+              {plans.length === 0 ? (
+                <p className="text-sm text-surface-400">Memuat paket...</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {plans.map((plan) => {
+                    const isSelected = selectedPlan === plan.id;
+                    return (
+                      <div
+                        key={plan.id}
+                        onClick={() => setSelectedPlan(plan.id)}
+                        className={`cursor-pointer rounded-xl border-2 p-4 text-center transition-all ${
+                          isSelected
+                            ? "border-brand-500 bg-brand-50 shadow-sm dark:border-brand-400 dark:bg-brand-950/30"
+                            : "border-warm-200 bg-white hover:border-warm-300 dark:border-surface-700 dark:bg-surface-800 dark:hover:border-surface-500"
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="mb-2 flex justify-center">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600">
+                              <Check className="h-3 w-3 text-white" />
+                            </div>
+                          </div>
+                        )}
+                        <h3 className={`text-sm font-bold ${isSelected ? "text-brand-700 dark:text-brand-400" : "text-surface-800 dark:text-warm-200"}`}>
+                          {plan.nama}
+                        </h3>
+                        <p className={`mt-1 font-serif text-lg font-bold ${isSelected ? "text-brand-600 dark:text-brand-400" : "text-surface-900 dark:text-warm-100"}`}>
+                          {formatRupiah(plan.harga)}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-surface-400 dark:text-surface-500">
+                          {plan.deskripsi || `${plan.durasiHari} hari`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <button
               type="submit"
               disabled={step === "loading"}
-              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:bg-surface-300 disabled:text-surface-500"
+              className="btn-primary w-full justify-center gap-2"
             >
               {step === "loading" ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   Memproses...
                 </span>
               ) : (
-                "Daftar & Bayar Sekarang"
+                <>
+                  Daftar & Bayar
+                  <ArrowRight className="h-4 w-4" />
+                </>
               )}
             </button>
           </form>
         </div>
 
-        <p className="mt-4 text-center text-sm text-surface-500">
+        <p className="mt-6 text-center text-xs text-surface-500 dark:text-warm-400">
           Sudah punya toko?{" "}
-          <a href="/masuk" className="font-medium text-brand-600 hover:text-brand-700">
+          <Link href="/masuk" className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400">
             Login di sini
-          </a>
+          </Link>
         </p>
       </div>
     </div>
