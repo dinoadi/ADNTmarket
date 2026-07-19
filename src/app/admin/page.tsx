@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatRupiah, formatDate } from "@/lib/utils";
 
-type Tab = "dashboard" | "toko" | "pengguna";
 type TenantStatus = "AKTIF" | "SUSPENDED" | "NONAKTIF";
 
 interface TenantItem {
@@ -46,7 +45,7 @@ export default function AdminPage() {
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState<string>("");
   const [userTenantId, setUserTenantId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("pengguna");
+  const [tab, setTab] = useState<string>("pengguna");
   const [dark, setDark] = useState(false);
 
   // Tenants
@@ -346,9 +345,8 @@ export default function AdminPage() {
   const totalTenants = tenantMeta?.total ?? 0;
   const activeTenants = tenants.filter((t) => t.status === "AKTIF").length;
   const totalUsers = userMeta?.total ?? 0;
-
   // Tabs yang tersedia berdasarkan role
-  const availableTabs: [Tab, string][] = isSuperAdmin
+  const availableTabs = isSuperAdmin
     ? [["dashboard", "Dashboard"], ["toko", "Toko"], ["pengguna", "Pengguna"]]
     : [["pengguna", "Pengguna"]];
 
@@ -402,12 +400,7 @@ export default function AdminPage() {
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={
-                "px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px " +
-                (tab === key
-                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-                  : "border-transparent text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200")
-              }
+              className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === key ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400" : "border-transparent text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"}`}
             >
               {label}
             </button>
@@ -856,9 +849,8 @@ export default function AdminPage() {
                     className="input bg-surface-50 text-surface-500"
                     disabled
                   />
-                </div>
+              </div>
               )}
-              <div>
               <div>
                 <label className="label">Nama</label>
                 <input
@@ -899,6 +891,7 @@ export default function AdminPage() {
                     <option value="KASIR">Kasir</option>
                     <option value="TENANT_ADMIN">Admin Toko</option>
                     <option value="SUPER_ADMIN">Super Admin</option>
+                  </select>
                 ) : (
                   <input
                     value="Kasir"
