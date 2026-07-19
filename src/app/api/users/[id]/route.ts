@@ -1,19 +1,28 @@
 // ============================================================
 // ADNTmarket.app — GET/PATCH/DELETE /api/users/:id
+// SUPER_ADMIN → full access
+// TENANT_ADMIN → hanya user di tenant-nya sendiri, hanya KASIR
 // ============================================================
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
+import { getAuthUser } from "@/lib/auth-utils";
 
-function getAuthUser(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) throw new Error("UNAUTHORIZED");
-  const decoded = verifyToken(authHeader.slice(7));
-  if (decoded.role !== "SUPER_ADMIN") throw new Error("FORBIDDEN");
-  return decoded;
+/** Helper: pastikan TENANT_ADMIN punya akses ke user ini */
+function assertTenantAccess(auth: { role: string; tenantId?: string }, targetUser: { role: string; tenantId: string | null }) {
+  if (auth.role === "TENANT_ADMIN") {
+    // TENANT_ADMIN hanya bisa manage KASIR di tenant-nya
+    if (targetUser.role !== "KASIR") {
+      return errorResponse("Admin toko hanya bisa mengelola akun Kasir", 403);
+    }
+    if (targetUser.tenantId !== auth.tenantId) {
+      return errorResponse("Anda hanya bisa mengelola user di toko Anda sendiri", 403);
+    }
+  }
+  return null; // allowed
 }
 
 //─── GET /api/users/:id ──────────────────────────────────────
@@ -22,7 +31,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    getAuthUser(request);
+    const auth = getAuthUser(request, ["SUPER_ADMIN", "TENANT_ADMIN"]);
     const user = await prisma.user.findUnique({
       where: { id: params.id },
       select: {
@@ -41,10 +50,12 @@ export async function GET(
       return errorResponse("User tidak ditemukan", 404);
     }
 
+    // Check tenant access
+    const accessError = assertTenantAccess(auth, user);
+    if (accessError) return accessError;
+
     return successResponse(user);
   } catch (error) {
-    if (error instanceof Error && (error.message === "UNAUTHORIZED" || error.message === "FORBIDDEN"))
-      return errorResponse(error.message === "UNAUTHORIZED" ? "Unauthorized" : "Forbidden", 401);
     return handleApiError(error);
   }
 }
@@ -63,9 +74,24 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    getAuthUser(request);
+    const auth = getAuthUser(request, ["SUPER_ADMIN", "TENANT_ADMIN"]);
     const body = await request.json();
     const data = updateUserSchema.parse(body);
+
+    // Cari user target
+    const targetUser = await prisma.user.findUnique({ where: { id: params.id } });
+    if (!targetUser) {
+      return errorResponse("User tidak ditemukan", 404);
+    }
+
+    // Check tenant access
+    const accessError = assertTenantAccess(auth, targetUser);
+    if (accessError) return accessError;
+
+    // TENANT_ADMIN tidak bisa mengubah role menjadi TENANT_ADMIN
+    if (auth.role === "TENANT_ADMIN" && data.role === "TENANT_ADMIN") {
+      return errorResponse("Admin toko tidak bisa mengubah role menjadi Admin Toko", 403);
+    }
 
     const updateData: Record<string, unknown> = {};
     if (data.nama !== undefined) updateData.nama = data.nama;
@@ -97,8 +123,6 @@ export async function PATCH(
 
     return successResponse(user);
   } catch (error) {
-    if (error instanceof Error && (error.message === "UNAUTHORIZED" || error.message === "FORBIDDEN"))
-      return errorResponse(error.message === "UNAUTHORIZED" ? "Unauthorized" : "Forbidden", 401);
     return handleApiError(error);
   }
 }
@@ -109,24 +133,26 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    getAuthUser(request);
+    const auth = getAuthUser(request, ["SUPER_ADMIN", "TENANT_ADMIN"]);
 
-    const user = await prisma.user.findUnique({ where: { id: params.id } });
-    if (!user) {
+    const targetUser = await prisma.user.findUnique({ where: { id: params.id } });
+    if (!targetUser) {
       return errorResponse("User tidak ditemukan", 404);
     }
 
     // Prevent deleting SUPER_ADMIN accounts
-    if (user.role === "SUPER_ADMIN") {
+    if (targetUser.role === "SUPER_ADMIN") {
       return errorResponse("Tidak dapat menghapus akun Super Admin", 403);
     }
+
+    // Check tenant access
+    const accessError = assertTenantAccess(auth, targetUser);
+    if (accessError) return accessError;
 
     await prisma.user.delete({ where: { id: params.id } });
 
     return successResponse({ message: "User berhasil dihapus" });
   } catch (error) {
-    if (error instanceof Error && (error.message === "UNAUTHORIZED" || error.message === "FORBIDDEN"))
-      return errorResponse(error.message === "UNAUTHORIZED" ? "Unauthorized" : "Forbidden", 401);
     return handleApiError(error);
   }
 }

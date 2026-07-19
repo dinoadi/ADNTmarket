@@ -1,13 +1,18 @@
+// ============================================================
+// ADNTmarket.app — Registrasi Toko Baru + Invoice Sayabayar
+// ============================================================
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { generateOrderId, createInvoice } from "@/lib/sayabayar";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { slug, namaToko, alamat, telepon, email, password, planId } = body;
 
-    // Validasi input
+    // ── Validasi input ──────────────────────────────────────
     if (!slug || !namaToko || !email || !password || !planId) {
       return NextResponse.json(
         { success: false, error: "Semua field harus diisi" },
@@ -22,7 +27,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validasi slug format
     const slugRegex = /^[a-z0-9-]{3,30}$/;
     if (!slugRegex.test(slug)) {
       return NextResponse.json(
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ambil paket
+    // ── Ambil paket ─────────────────────────────────────────
     const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) {
       return NextResponse.json(
@@ -58,26 +62,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Hitung tanggal kedaluwarsa
+    // ── Generate order ID & buat tenant ─────────────────────
     const now = new Date();
-    const expiredAt = new Date(now.getTime() + plan.durasiHari * 24 * 60 * 60 * 1000);
-
-    // Generate order ID untuk Midtrans
-    const { generateOrderId, createSnapToken } = await import("@/lib/midtrans");
     const orderId = generateOrderId();
-
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Buat tenant + user + payment dalam 1 transaksi
-    const tenant = await prisma.$transaction(async (tx) => {
+    const { tenant, payment } = await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: {
           slug,
           namaToko,
           alamat: alamat || null,
           telepon: telepon || null,
-          statusAktif: false, // belum aktif sampai bayar
+          statusAktif: false,
           status: "NONAKTIF",
           tanggalMulai: undefined,
           tanggalKedaluwarsa: undefined,
@@ -95,8 +92,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Bikin payment record
-      const paymentExpiredAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 jam
+      const paymentExpiredAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       const payment = await tx.payment.create({
         data: {
           tenantId: tenant.id,
@@ -114,41 +110,48 @@ export async function POST(req: NextRequest) {
       return { tenant, payment };
     });
 
-    // Generate Snap token dari Midtrans
-    let snapToken: string | null = null;
+    // ── Buat invoice di Sayabayar ───────────────────────────
+    const rootUrl = process.env.NEXT_PUBLIC_APP_URL || "https://adntmarket.netlify.app";
+    let sayabayarPaymentUrl: string | null = null;
+    let sayabayarInvoiceId: string | null = null;
+
     try {
-      snapToken = await createSnapToken({
-        orderId,
-        amount: plan.harga,
+      const invoice = await createInvoice({
         customerName: `Admin ${namaToko}`,
         customerEmail: email,
-        customerPhone: telepon || undefined,
-        planName: plan.nama,
+        amount: plan.harga,
+        description: `Paket Sewa ${plan.nama} - ${namaToko}`,
+        redirectUrl: `${rootUrl}/daftar/sukses?order_id=${orderId}`,
+        expiredMinutes: 1440, // 24 jam
       });
-    } catch (midtransError) {
-      console.error("Midtrans error:", midtransError);
-      // Tetap lanjut, snap token bisa digenerate ulang nanti
-    }
 
-    // Update snapToken di payment
-    if (snapToken) {
+      sayabayarPaymentUrl = invoice.data.payment_url;
+      sayabayarInvoiceId = invoice.data.id;
+
+      // Simpan invoice info ke database
       await prisma.payment.update({
         where: { merchantOrderId: orderId },
-        data: { snapToken },
+        data: {
+          sayabayarInvoiceId,
+          sayabayarPaymentUrl,
+        },
       });
+    } catch (sayabayarError) {
+      console.error("Sayabayar invoice error:", sayabayarError);
+      // Tetap lanjut — payment_url bisa dibuat ulang nanti
     }
 
     return NextResponse.json({
       success: true,
       data: {
         tenant: {
-          slug: tenant.tenant.slug,
-          namaToko: tenant.tenant.namaToko,
+          slug: tenant.slug,
+          namaToko: tenant.namaToko,
         },
         payment: {
           orderId,
           amount: plan.harga,
-          snapToken,
+          paymentUrl: sayabayarPaymentUrl,
           planName: plan.nama,
         },
       },

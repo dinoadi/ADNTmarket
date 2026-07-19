@@ -221,7 +221,9 @@ model Payment {
   metodePembayaran String? // bank_transfer, gopay, qris, dll
   merchantOrderId String   @unique
   transactionId   String?  // dari Midtrans
-  snapToken       String?  // Midtrans Snap token
+  snapToken           String?  // Midtrans Snap token (legacy)
+  sayabayarInvoiceId  String?  @unique // Sayabayar invoice ID
+  sayabayarPaymentUrl String?          // URL pembayaran dari Sayabayar
   paidAt          DateTime?
   expiredAt       DateTime?
   pembeliNama     String?

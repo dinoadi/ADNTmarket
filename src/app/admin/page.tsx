@@ -44,7 +44,9 @@ export default function AdminPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [userRole, setUserRole] = useState<string>("");
+  const [userTenantId, setUserTenantId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("pengguna");
   const [dark, setDark] = useState(false);
 
   // Tenants
@@ -76,6 +78,9 @@ export default function AdminPage() {
   const [cuForm, setCuForm] = useState({ nama: "", email: "", password: "", role: "KASIR", tenantId: "" });
   const [cuLoading, setCuLoading] = useState(false);
 
+  const isSuperAdmin = userRole === "SUPER_ADMIN";
+  const isTenantAdmin = userRole === "TENANT_ADMIN";
+
   useEffect(() => {
     const t = localStorage.getItem("adnt_token");
     const u = localStorage.getItem("adnt_user");
@@ -84,12 +89,24 @@ export default function AdminPage() {
 
     try {
       const parsed = JSON.parse(u ?? "{}");
-      if (parsed.role !== "SUPER_ADMIN") {
+
+      // SUPER_ADMIN dan TENANT_ADMIN bisa akses admin panel
+      if (parsed.role !== "SUPER_ADMIN" && parsed.role !== "TENANT_ADMIN") {
         toast.error("Akses ditolak");
         router.push("/");
         return;
       }
+
       setUserName(parsed.nama || "Admin");
+      setUserRole(parsed.role);
+      setUserTenantId(parsed.tenantId ?? null);
+
+      // TENANT_ADMIN langsung ke tab pengguna
+      if (parsed.role === "TENANT_ADMIN") {
+        setTab("pengguna");
+      } else {
+        setTab("dashboard");
+      }
     } catch { router.push("/"); return; }
 
     setToken(t);
@@ -141,7 +158,7 @@ export default function AdminPage() {
     finally { setTenantsLoading(false); }
   }, [token, tenantPage, tenantSearch]);
 
-  useEffect(() => { fetchTenants(); }, [fetchTenants]);
+  useEffect(() => { if (isSuperAdmin) fetchTenants(); }, [fetchTenants, isSuperAdmin]);
 
   //─── Fetch Users ───────────────────────────────────────────
   const fetchUsers = useCallback(async () => {
@@ -153,6 +170,11 @@ export default function AdminPage() {
       params.set("limit", "10");
       if (userSearch) params.set("search", userSearch);
 
+      // TENANT_ADMIN hanya melihat user tenant-nya sendiri
+      if (isTenantAdmin && userTenantId) {
+        params.set("tenantId", userTenantId);
+      }
+
       const res = await fetch(`/api/users?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -163,7 +185,7 @@ export default function AdminPage() {
       }
     } catch { toast.error("Gagal memuat data pengguna"); }
     finally { setUsersLoading(false); }
-  }, [token, userPage, userSearch]);
+  }, [token, userPage, userSearch, isTenantAdmin, userTenantId]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -325,6 +347,11 @@ export default function AdminPage() {
   const activeTenants = tenants.filter((t) => t.status === "AKTIF").length;
   const totalUsers = userMeta?.total ?? 0;
 
+  // Tabs yang tersedia berdasarkan role
+  const availableTabs: [Tab, string][] = isSuperAdmin
+    ? [["dashboard", "Dashboard"], ["toko", "Toko"], ["pengguna", "Pengguna"]]
+    : [["pengguna", "Pengguna"]];
+
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-950">
       {/* ─── Navbar ─────────────────────────────────── */}
@@ -336,6 +363,9 @@ export default function AdminPage() {
             </div>
             <span className="text-base font-bold tracking-tight text-surface-900 dark:text-white">
               Admin<span className="text-blue-600">Panel</span>
+            </span>
+            <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+              {isSuperAdmin ? "Super Admin" : "Admin Toko"}
             </span>
           </div>
 
@@ -368,7 +398,7 @@ export default function AdminPage() {
       {/* ─── Tabs ───────────────────────────────────── */}
       <div className="border-b border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
         <div className="mx-auto flex max-w-6xl gap-1 px-6">
-          {([["dashboard", "Dashboard"], ["toko", "Toko"], ["pengguna", "Pengguna"]] as [Tab, string][]).map(([key, label]) => (
+          {availableTabs.map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -389,7 +419,7 @@ export default function AdminPage() {
       <div className="mx-auto max-w-6xl px-6 py-6">
 
         {/* ═══ DASHBOARD ═══════════════════════════════ */}
-        {tab === "dashboard" && (
+        {isSuperAdmin && tab === "dashboard" && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-surface-900 dark:text-white">Dashboard</h2>
@@ -453,7 +483,7 @@ export default function AdminPage() {
         )}
 
         {/* ═══ TOKO ════════════════════════════════════ */}
-        {tab === "toko" && (
+        {isSuperAdmin && tab === "toko" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -569,10 +599,16 @@ export default function AdminPage() {
               <div>
                 <h2 className="text-lg font-bold text-surface-900 dark:text-white">Manajemen Pengguna</h2>
                 <p className="text-sm text-surface-500 dark:text-surface-400">
-                  Kelola pengguna untuk setiap toko
+                  {isTenantAdmin ? "Kelola akun kasir untuk toko Anda" : "Kelola pengguna untuk setiap toko"}
                 </p>
               </div>
-              <button onClick={() => setShowCreateUser(true)} className="btn-primary text-sm">
+              <button onClick={() => {
+                // TENANT_ADMIN: set tenantId otomatis
+                if (isTenantAdmin && userTenantId) {
+                  setCuForm((f) => ({ ...f, tenantId: userTenantId }));
+                }
+                setShowCreateUser(true);
+              }} className="btn-primary text-sm">
                 + Tambah Pengguna
               </button>
             </div>
@@ -604,7 +640,7 @@ export default function AdminPage() {
                           <th className="px-4 py-3">Nama</th>
                           <th className="px-4 py-3">Email</th>
                           <th className="px-4 py-3">Role</th>
-                          <th className="px-4 py-3">Toko</th>
+                          {isSuperAdmin && <th className="px-4 py-3">Toko</th>}
                           <th className="px-4 py-3">Status</th>
                           <th className="px-4 py-3 text-right">Aksi</th>
                         </tr>
@@ -622,9 +658,11 @@ export default function AdminPage() {
                                 {user.role === "TENANT_ADMIN" ? "Admin Toko" : "Kasir"}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-xs text-surface-500">
-                              {user.tenant?.namaToko ?? "—"}
-                            </td>
+                            {isSuperAdmin && (
+                              <td className="px-4 py-3 text-xs text-surface-500">
+                                {user.tenant?.namaToko ?? "—"}
+                              </td>
+                            )}
                             <td className="px-4 py-3">
                               <span className={"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium " + (
                                 user.isActive ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
@@ -677,7 +715,7 @@ export default function AdminPage() {
       </div>
 
       {/* ═══ MODAL: Create Tenant ══════════════════════════════ */}
-      {showCreateTenant && (
+      {isSuperAdmin && showCreateTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-surface-900">
             <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-white">Tambah Toko Baru</h3>
@@ -743,7 +781,7 @@ export default function AdminPage() {
       )}
 
       {/* ═══ MODAL: Edit Tenant ════════════════════════════════ */}
-      {editTenant && (
+      {isSuperAdmin && editTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-surface-900">
             <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-white">
@@ -795,19 +833,31 @@ export default function AdminPage() {
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-surface-900">
             <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-white">Tambah Pengguna Baru</h3>
             <div className="space-y-3">
-              <div>
-                <label className="label">Toko</label>
-                <select
-                  value={cuForm.tenantId}
-                  onChange={(e) => setCuForm((f) => ({ ...f, tenantId: e.target.value }))}
-                  className="input"
-                >
-                  <option value="">Pilih toko...</option>
-                  {tenants.filter((t) => t.status === "AKTIF").map((t) => (
-                    <option key={t.id} value={t.id}>{t.namaToko}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Select Toko — hanya untuk SUPER_ADMIN */}
+              {isSuperAdmin ? (
+                <div>
+                  <label className="label">Toko</label>
+                  <select
+                    value={cuForm.tenantId}
+                    onChange={(e) => setCuForm((f) => ({ ...f, tenantId: e.target.value }))}
+                    className="input"
+                  >
+                    <option value="">Pilih toko...</option>
+                    {tenants.filter((t) => t.status === "AKTIF").map((t) => (
+                      <option key={t.id} value={t.id}>{t.namaToko}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="label">Toko</label>
+                  <input
+                    value={tenants.find((t) => t.id === userTenantId)?.namaToko ?? "Toko Anda"}
+                    className="input bg-surface-50 text-surface-500"
+                    disabled
+                  />
+                </div>
+              )}
               <div>
                 <label className="label">Nama</label>
                 <input
@@ -839,14 +889,22 @@ export default function AdminPage() {
               </div>
               <div>
                 <label className="label">Role</label>
-                <select
-                  value={cuForm.role}
-                  onChange={(e) => setCuForm((f) => ({ ...f, role: e.target.value }))}
-                  className="input"
-                >
-                  <option value="KASIR">Kasir</option>
-                  <option value="TENANT_ADMIN">Admin Toko</option>
-                </select>
+                {isSuperAdmin ? (
+                  <select
+                    value={cuForm.role}
+                    onChange={(e) => setCuForm((f) => ({ ...f, role: e.target.value }))}
+                    className="input"
+                  >
+                    <option value="KASIR">Kasir</option>
+                    <option value="TENANT_ADMIN">Admin Toko</option>
+                  </select>
+                ) : (
+                  <input
+                    value="Kasir"
+                    className="input bg-surface-50 text-surface-500"
+                    disabled
+                  />
+                )}
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button onClick={() => setShowCreateUser(false)} className="btn-secondary text-sm">

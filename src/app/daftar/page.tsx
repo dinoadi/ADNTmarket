@@ -13,10 +13,9 @@ interface Plan {
 
 export default function DaftarPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"form" | "payment" | "loading">("form");
+  const [step, setStep] = useState<"form" | "loading">("form");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string>("");
-  const [snapToken, setSnapToken] = useState<string | null>(null);
 
   // Form state
   const [form, setForm] = useState({
@@ -28,8 +27,6 @@ export default function DaftarPage() {
     password: "",
   });
   const [error, setError] = useState("");
-  const [snapLoaded, setSnapLoaded] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
 
   // Ambil daftar paket
   useEffect(() => {
@@ -39,45 +36,6 @@ export default function DaftarPage() {
         if (data.success) setPlans(data.data);
       });
   }, []);
-
-  // Load Midtrans Snap script
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY;
-    if (!clientKey) return;
-
-    const script = document.createElement("script");
-    script.src =
-      process.env.NODE_ENV === "production"
-        ? "https://app.midtrans.com/snap/snap.js"
-        : "https://app.sandbox.midtrans.com/snap/snap.js";
-    script.setAttribute("data-client-key", clientKey);
-    script.async = true;
-    script.onload = () => setSnapLoaded(true);
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
-  // Buka Snap payment
-  useEffect(() => {
-    if (step === "payment" && snapToken && snapLoaded && window.snap) {
-      window.snap.pay(snapToken, {
-        onSuccess: () => {
-          router.push(`/daftar/sukses?order_id=${orderId}`);
-        },
-        onPending: () => {
-          router.push(`/daftar/sukses?order_id=${orderId}&status=pending`);
-        },
-        onClose: () => {
-          setStep("form");
-          setError("Pembayaran dibatalkan, kamu bisa bayar nanti");
-        },
-      });
-    }
-  }, [step, snapToken, snapLoaded, orderId, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,13 +63,15 @@ export default function DaftarPage() {
         return;
       }
 
-      setOrderId(data.data.payment.orderId);
+      const paymentUrl = data.data.payment.paymentUrl;
+      const orderId = data.data.payment.orderId;
 
-      if (data.data.payment.snapToken) {
-        setSnapToken(data.data.payment.snapToken);
-        setStep("payment");
+      if (paymentUrl) {
+        // Redirect ke halaman pembayaran Sayabayar
+        window.location.href = paymentUrl;
       } else {
-        router.push(`/daftar/sukses?order_id=${data.data.payment.orderId}&status=manual`);
+        // Gagal generate payment URL, arahkan ke sukses manual
+        router.push(`/daftar/sukses?order_id=${orderId}&status=manual`);
       }
     } catch {
       setError("Gagal terhubung ke server, coba lagi");
@@ -155,7 +115,7 @@ export default function DaftarPage() {
 
             <div className="mb-4">
               <label className="mb-1 block text-xs font-medium text-surface-600">
-                Slug Toko <span className="text-surface-400">(untuk URL: adntmarket.app/namaslug)</span>
+                Slug Toko <span className="text-surface-400">(untuk URL: namaslug.adntmarket.app)</span>
               </label>
               <input
                 type="text"
@@ -265,7 +225,7 @@ export default function DaftarPage() {
 
         <p className="mt-4 text-center text-sm text-surface-500">
           Sudah punya toko?{" "}
-          <a href="/" className="font-medium text-brand-600 hover:text-brand-700">
+          <a href="/masuk" className="font-medium text-brand-600 hover:text-brand-700">
             Login di sini
           </a>
         </p>

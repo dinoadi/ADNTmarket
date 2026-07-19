@@ -1,5 +1,7 @@
 // ============================================================
-// ADNTmarket.app — CRUD Users (Super Admin only)
+// ADNTmarket.app — CRUD Users (Super Admin & Tenant Admin)
+// SUPER_ADMIN → full access
+// TENANT_ADMIN → hanya user di tenant-nya sendiri, hanya KASIR
 // GET  /api/users     → List users (paginated, filter by tenant)
 // POST /api/users     → Create user within a tenant
 // ============================================================
@@ -7,21 +9,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { verifyToken, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { successResponse, createdResponse, errorResponse, handleApiError } from "@/lib/api-response";
-
-function getAuthUser(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) throw new Error("UNAUTHORIZED");
-  const decoded = verifyToken(authHeader.slice(7));
-  if (decoded.role !== "SUPER_ADMIN") throw new Error("FORBIDDEN");
-  return decoded;
-}
+import { getAuthUser } from "@/lib/auth-utils";
 
 //─── GET /api/users ──────────────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
-    getAuthUser(request);
+    const auth = getAuthUser(request, ["SUPER_ADMIN", "TENANT_ADMIN"]);
 
     const { searchParams } = request.nextUrl;
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -32,7 +27,13 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {};
 
-    if (tenantId) where.tenantId = tenantId;
+    // TENANT_ADMIN hanya bisa melihat user di tenant-nya sendiri
+    if (auth.role === "TENANT_ADMIN") {
+      where.tenantId = auth.tenantId;
+    } else {
+      if (tenantId) where.tenantId = tenantId;
+    }
+
     if (role) where.role = role;
     if (search) {
       where.OR = [
@@ -63,10 +64,6 @@ export async function GET(request: NextRequest) {
 
     return successResponse(users, { total, page, limit, totalPages: Math.ceil(total / limit) });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED")
-      return errorResponse("Unauthorized", 401);
-    if (error instanceof Error && error.message === "FORBIDDEN")
-      return errorResponse("Forbidden", 403);
     return handleApiError(error);
   }
 }
@@ -82,9 +79,19 @@ const createUserSchema = z.object({
 //─── POST /api/users ─────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    getAuthUser(request);
+    const auth = getAuthUser(request, ["SUPER_ADMIN", "TENANT_ADMIN"]);
     const body = await request.json();
     const data = createUserSchema.parse(body);
+
+    // TENANT_ADMIN: hanya bisa create KASIR di tenant-nya sendiri
+    if (auth.role === "TENANT_ADMIN") {
+      if (data.role !== "KASIR") {
+        return errorResponse("Admin toko hanya bisa membuat akun Kasir", 403);
+      }
+      if (data.tenantId !== auth.tenantId) {
+        return errorResponse("Anda hanya bisa membuat user untuk toko Anda sendiri", 403);
+      }
+    }
 
     // Cek tenant exists
     const tenant = await prisma.tenant.findUnique({ where: { id: data.tenantId } });
@@ -122,10 +129,6 @@ export async function POST(request: NextRequest) {
 
     return createdResponse(user);
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHORIZED")
-      return errorResponse("Unauthorized", 401);
-    if (error instanceof Error && error.message === "FORBIDDEN")
-      return errorResponse("Forbidden", 403);
     return handleApiError(error);
   }
 }
