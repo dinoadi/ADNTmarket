@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Check, Building2, Globe, MapPin, Phone, Mail, Lock } from "lucide-react";
+import { toast } from "sonner";
+import { InputField } from "./InputField";
 
 interface Plan {
   id: string;
@@ -27,6 +29,9 @@ export default function DaftarPage() {
     password: "",
   });
   const [error, setError] = useState("");
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucherInfo, setVoucherInfo] = useState<{ kode: string; durasiHari: number; deskripsi: string | null } | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/subscription-plans")
@@ -40,8 +45,8 @@ export default function DaftarPage() {
     e.preventDefault();
     setError("");
 
-    if (!selectedPlan) {
-      setError("Pilih paket sewa terlebih dahulu");
+    if (!selectedPlan && !voucherInfo) {
+      setError("Pilih paket sewa atau masukkan kode voucher");
       return;
     }
 
@@ -51,7 +56,7 @@ export default function DaftarPage() {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, planId: selectedPlan }),
+        body: JSON.stringify({ ...form, planId: selectedPlan, voucherCode: voucherInfo?.kode }),
       });
 
       const data = await res.json();
@@ -59,6 +64,12 @@ export default function DaftarPage() {
       if (!data.success) {
         setError(data.error);
         setStep("form");
+        return;
+      }
+
+      if (data.data?.voucher) {
+        toast.success(data.data.message || "Registrasi berhasil!");
+        router.push("/masuk");
         return;
       }
 
@@ -79,39 +90,9 @@ export default function DaftarPage() {
   const formatRupiah = (n: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(n);
 
-  const InputField = ({
-    label,
-    icon: Icon,
-    ...props
-  }: {
-    label: string;
-    icon?: React.ElementType;
-    type?: string;
-    required?: boolean;
-    placeholder?: string;
-    value: string;
-    minLength?: number;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  }) => (
-    <div>
-      <label className="label">{label}</label>
-      <div className="relative">
-        {Icon && (
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-surface-400 dark:text-surface-500">
-            <Icon className="h-4 w-4" />
-          </div>
-        )}
-        <input
-          className={`input ${Icon ? "pl-10" : ""}`}
-          {...props}
-        />
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-warm-50 dark:bg-surface-950">
-      {/* ─── Navbar ─────────────── */}
+      {/* Navbar */}
       <nav className="border-b border-warm-200 bg-white/80 backdrop-blur-xl dark:border-surface-800 dark:bg-surface-950/80">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-3">
@@ -131,7 +112,7 @@ export default function DaftarPage() {
         </div>
       </nav>
 
-      {/* ─── Form ──────────────── */}
+      {/* Form */}
       <div className="mx-auto w-full max-w-lg px-6 py-12">
         <h1 className="font-serif text-2xl font-bold text-surface-900 dark:text-warm-100">
           Daftarkan Toko Baru
@@ -224,6 +205,68 @@ export default function DaftarPage() {
               </div>
             </div>
 
+            {/* Voucher */}
+            <div className="border-t border-warm-200 pt-5 dark:border-surface-700">
+              <h2 className="mb-4 font-serif text-lg font-bold text-surface-900 dark:text-warm-100">
+                Punya Kode Voucher?
+              </h2>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Masukkan kode voucher"
+                    value={voucherCode}
+                    onChange={(e) => {
+                      setVoucherCode(e.target.value.toUpperCase());
+                      setVoucherInfo(null);
+                    }}
+                    className="input flex-1 uppercase"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!voucherCode) return;
+                      setVoucherLoading(true);
+                      try {
+                        const res = await fetch("/api/vouchers/validate", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ kode: voucherCode }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setVoucherInfo(data.data);
+                          setSelectedPlan("");
+                          setError("");
+                        } else {
+                          setVoucherInfo(null);
+                          setError(data.error || "Voucher tidak valid");
+                        }
+                      } catch {
+                        setVoucherInfo(null);
+                        setError("Gagal validasi voucher");
+                      }
+                      setVoucherLoading(false);
+                    }}
+                    disabled={voucherLoading || !voucherCode}
+                    className="btn-secondary text-sm px-4"
+                  >
+                    {voucherLoading ? "..." : "Cek"}
+                  </button>
+                </div>
+                {voucherInfo && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20">
+                    <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                      Voucher valid!
+                    </p>
+                    <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                      {voucherInfo.deskripsi || `Akses ${voucherInfo.durasiHari} hari`} &mdash; Toko langsung aktif tanpa bayar
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Pilih Paket */}
             <div>
               <h2 className="mb-4 font-serif text-lg font-bold text-surface-900 dark:text-warm-100">
@@ -281,9 +324,11 @@ export default function DaftarPage() {
                   </svg>
                   Memproses...
                 </span>
+              ) : voucherInfo ? (
+                <span>Daftar <ArrowRight className="h-4 w-4" /></span>
               ) : (
                 <>
-                  Daftar & Bayar
+                  Daftar dan Bayar
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}

@@ -243,3 +243,21 @@ model Payment {
 
 // Tambah relasi ke Tenant
 // Payment[] udah otomatis dari `tenant` field di atas
+
+
+// ─── VOUCHER ──────────────────────────────────────────────
+
+model Voucher {
+  id            String    @id @default(cuid())
+  kode          String    @unique       // kode unik voucher
+  durasiHari    Int                     // jumlah hari sewa yang diberikan
+  deskripsi     String?                 // deskripsi / catatan
+  kuota         Int       @default(1)   // maksimal pemakaian
+  terpakai      Int       @default(0)   // sudah berapa kali dipakai
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([kode])
+  @@map("vouchers")
+}

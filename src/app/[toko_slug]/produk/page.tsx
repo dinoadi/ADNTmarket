@@ -5,14 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/utils";
 import type { ProductData, KategoriProduk } from "@/types";
-import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { formatRupiah } from "@/lib/utils";
-import type { ProductData, KategoriProduk } from "@/types";
-import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { formatRupiah } from "@/lib/utils";
-import type { ProductData, KategoriProduk } from "@/types";
 
 const KATEGORI_LIST: Array<{ label: string; value: KategoriProduk | "" }> = [
   { label: "Semua", value: "" },
@@ -68,8 +60,6 @@ export default function ProdukPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; updated: number; errors: number; total: number; details: any[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<ProductForm>(emptyForm);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("adnt_token");
@@ -163,20 +153,6 @@ export default function ProdukPage() {
       } else { toast.error(data.error ?? "Gagal menghapus"); }
     } catch { toast.error("Gagal menghapus produk"); }
   };
-    if (!confirm(`Hapus produk "${nama}"?`)) return;
-    if (!token) return;
-    try {
-      const res = await fetch(`/api/${slug}/products/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Produk dihapus");
-        fetchProducts();
-      } else { toast.error(data.error ?? "Gagal menghapus"); }
-    } catch { toast.error("Gagal menghapus produk"); }
-  };
 
   const handleExport = () => {
     window.open(`/api/${slug}/products/export`, "_blank");
@@ -247,7 +223,6 @@ export default function ProdukPage() {
             >
               Export
             </button>
-            <button
             <button
               onClick={() => router.push(`/${slug}/kasir`)}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-surface-600 hover:bg-surface-100"

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: { toko_slu
 
     const search = request.nextUrl.searchParams.get("search") || "";
 
-    const where: any = { tenantId, deletedAt: null };
+    const where: any = { tenantId, isActive: true };
     if (search) {
       where.nama = { contains: search, mode: "insensitive" };
     }

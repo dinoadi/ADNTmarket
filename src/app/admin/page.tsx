@@ -32,6 +32,15 @@ interface UserItem {
   tenant: { namaToko: string; slug: string } | null;
 }
 
+interface VoucherItem {
+  id: string;
+  kode: string;
+  durasiHari: number;
+  deskripsi: string | null;
+  kuota: number;
+  terpakai: number;
+  isActive: boolean;
+}
 interface PageMeta {
   total: number;
   page: number;
@@ -76,6 +85,19 @@ export default function AdminPage() {
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [cuForm, setCuForm] = useState({ nama: "", email: "", password: "", role: "KASIR", tenantId: "" });
   const [cuLoading, setCuLoading] = useState(false);
+
+// Edit User
+const [showEditUser, setShowEditUser] = useState(false);
+const [euForm, setEuForm] = useState({ nama: "", email: "", role: "KASIR", isActive: true });
+const [euLoading, setEuLoading] = useState(false);
+const [editingUser, setEditingUser] = useState<{ id: string; nama: string; email: string; role: string; isActive: boolean } | null>(null);
+
+// Voucher
+const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
+const [vouchersLoading, setVouchersLoading] = useState(false);
+const [showCreateVoucher, setShowCreateVoucher] = useState(false);
+const [cvForm, setCvForm] = useState({ durasiHari: 30, deskripsi: "", kuota: 1, kode: "" });
+const [cvLoading, setCvLoading] = useState(false);
 
   const isSuperAdmin = userRole === "SUPER_ADMIN";
   const isTenantAdmin = userRole === "TENANT_ADMIN";
@@ -304,6 +326,105 @@ export default function AdminPage() {
     finally { setCuLoading(false); }
   };
 
+//─── Edit User ───────────────────────────────────────────
+  const openEditUser = (user: { id: string; nama: string; email: string; role: string; isActive: boolean }) => {
+  setEditingUser(user);
+  setEuForm({ nama: user.nama, email: user.email, role: user.role, isActive: user.isActive });
+  setShowEditUser(true);
+};
+
+const handleEditUser = async () => {
+  if (!token || !editingUser) return;
+  setEuLoading(true);
+  try {
+    const res = await fetch(`/api/users/${editingUser.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(euForm),
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast.success("Pengguna diperbarui");
+      setShowEditUser(false);
+      setEditingUser(null);
+      fetchUsers();
+    } else {
+      toast.error(data.error ?? "Gagal memperbarui");
+    }
+  } catch { toast.error("Terjadi kesalahan"); }
+  finally { setEuLoading(false); }
+};
+
+//─── Voucher Functions ────────────────────────────────────
+const fetchVouchers = useCallback(async () => {
+  if (!token) return;
+  setVouchersLoading(true);
+  try {
+    const res = await fetch("/api/vouchers", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) setVouchers(data.data);
+  } catch { toast.error("Gagal memuat voucher"); }
+  finally { setVouchersLoading(false); }
+}, [token]);
+
+useEffect(() => { if (isSuperAdmin && tab === "voucher") fetchVouchers(); }, [fetchVouchers, isSuperAdmin, tab]);
+
+const handleCreateVoucher = async () => {
+  if (!token) return;
+  setCvLoading(true);
+  try {
+    const res = await fetch("/api/vouchers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(cvForm),
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast.success("Voucher berhasil dibuat");
+      setShowCreateVoucher(false);
+      setCvForm({ durasiHari: 30, deskripsi: "", kuota: 1, kode: "" });
+      fetchVouchers();
+    } else {
+      toast.error(data.error ?? "Gagal membuat voucher");
+    }
+  } catch { toast.error("Terjadi kesalahan"); }
+  finally { setCvLoading(false); }
+};
+
+const handleToggleVoucher = async (v: { id: string; kode: string; isActive: boolean }) => {
+  if (!token) return;
+  try {
+    const res = await fetch(`/api/vouchers/${v.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isActive: !v.isActive }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast.success(`Voucher ${v.isActive ? "dinonaktifkan" : "diaktifkan"}`);
+      fetchVouchers();
+    }
+  } catch { toast.error("Terjadi kesalahan"); }
+};
+
+const handleDeleteVoucher = async (v: { id: string; kode: string }) => {
+  if (!token) return;
+  if (!confirm(`Hapus voucher "${v.kode}"?`)) return;
+  try {
+    const res = await fetch(`/api/vouchers/${v.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast.success("Voucher dihapus");
+      fetchVouchers();
+    }
+  } catch { toast.error("Terjadi kesalahan"); }
+};
+
   //─── Delete User ───────────────────────────────────────────
   const handleDeleteUser = async (user: UserItem) => {
     if (!token) return;
@@ -347,7 +468,7 @@ export default function AdminPage() {
   const totalUsers = userMeta?.total ?? 0;
   // Tabs yang tersedia berdasarkan role
   const availableTabs = isSuperAdmin
-    ? [["dashboard", "Dashboard"], ["toko", "Toko"], ["pengguna", "Pengguna"]]
+    ? [["dashboard", "Dashboard"], ["toko", "Toko"], ["pengguna", "Pengguna"], ["voucher", "Voucher"]]
     : [["pengguna", "Pengguna"]];
 
   return (
@@ -666,6 +787,9 @@ export default function AdminPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-end gap-1.5">
+<button onClick={() => openEditUser(user)} className="rounded-md px-2.5 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+Edit
+</button>
                                 <button onClick={() => handleToggleUserStatus(user)} className={"rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors " + (
                                   user.isActive
                                     ? "text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
@@ -701,6 +825,71 @@ export default function AdminPage() {
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ VOUCHER ═════════════════════════════════ */}
+        {isSuperAdmin && tab === "voucher" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-surface-900 dark:text-white">Manajemen Voucher</h2>
+                <p className="text-sm text-surface-500 dark:text-surface-400">Buat dan kelola voucher sewa toko</p>
+              </div>
+              <button onClick={() => setShowCreateVoucher(true)} className="btn-primary text-sm">
+                + Buat Voucher
+              </button>
+            </div>
+
+            <div className="card overflow-hidden">
+              {vouchersLoading ? (
+                <div className="space-y-3 p-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-12 animate-pulse rounded bg-surface-100 dark:bg-surface-800" />
+                  ))}
+                </div>
+              ) : vouchers.length === 0 ? (
+                <div className="p-8 text-center text-sm text-surface-400">Belum ada voucher</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-surface-100 bg-surface-50 text-left text-xs font-medium text-surface-500 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-400">
+                        <th className="px-4 py-3">Kode</th>
+                        <th className="px-4 py-3">Durasi</th>
+                        <th className="px-4 py-3">Pemakaian</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Deskripsi</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vouchers.map((v) => (
+                        <tr key={v.id} className="border-b border-surface-50 text-surface-700 last:border-0 hover:bg-surface-50 dark:border-surface-800 dark:text-surface-300 dark:hover:bg-surface-800/50">
+                          <td className="px-4 py-3 font-mono text-xs font-medium dark:text-white">{v.kode}</td>
+                          <td className="px-4 py-3">{v.durasiHari} hari</td>
+                          <td className="px-4 py-3 text-xs">{v.terpakai} / {v.kuota}</td>
+                          <td className="px-4 py-3">
+                            <span className={"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium " + (
+                              v.isActive ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            )}>{v.isActive ? "Aktif" : "Nonaktif"}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-surface-500">{v.deskripsi || "—"}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button onClick={() => handleToggleVoucher(v)} className={"rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors " + (
+                                v.isActive ? "text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20" : "text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+                              )}>{v.isActive ? "Nonaktifkan" : "Aktifkan"}</button>
+                              <button onClick={() => handleDeleteVoucher(v)} className="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">Hapus</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
@@ -911,6 +1100,74 @@ export default function AdminPage() {
                 >
                   {cuLoading ? "Membuat..." : "Buat Pengguna"}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL: Edit User ════════════════════════════════ */}
+      {showEditUser && editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-surface-900">
+            <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-white">Edit Pengguna</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="label">Nama</label>
+                <input value={euForm.nama} onChange={(e) => setEuForm((f) => ({ ...f, nama: e.target.value }))} className="input" />
+              </div>
+              <div>
+                <label className="label">Email</label>
+                <input value={euForm.email} className="input bg-surface-50 text-surface-500" disabled />
+              </div>
+              <div>
+                <label className="label">Role</label>
+                <select value={euForm.role} onChange={(e) => setEuForm((f) => ({ ...f, role: e.target.value }))} className="input">
+                  <option value="KASIR">Kasir</option>
+                  <option value="TENANT_ADMIN">Admin Toko</option>
+                  {isSuperAdmin && <option value="SUPER_ADMIN">Super Admin</option>}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="label cursor-pointer flex items-center gap-2">
+                  <input type="checkbox" checked={euForm.isActive} onChange={(e) => setEuForm((f) => ({ ...f, isActive: e.target.checked }))} className="h-4 w-4 rounded border-surface-300 text-blue-600 focus:ring-blue-500" />
+                  <span className="text-sm font-medium text-surface-700 dark:text-surface-300">Aktif</span>
+                </label>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => { setShowEditUser(false); setEditingUser(null); }} className="btn-secondary text-sm">Batal</button>
+                <button onClick={handleEditUser} className="btn-primary text-sm">{euLoading ? "Menyimpan..." : "Simpan"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL: Create Voucher ═══════════════════════════ */}
+      {isSuperAdmin && showCreateVoucher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-surface-900">
+            <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-white">Buat Voucher Baru</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="label">Kode Voucher (kosongi untuk auto-generate)</label>
+                <input value={cvForm.kode} onChange={(e) => setCvForm((f) => ({ ...f, kode: e.target.value.toUpperCase() }))} placeholder="VOC-XXXX-XXXX" className="input uppercase" />
+              </div>
+              <div>
+                <label className="label">Durasi Sewa (hari)</label>
+                <input type="number" min="1" value={cvForm.durasiHari} onChange={(e) => setCvForm((f) => ({ ...f, durasiHari: Number(e.target.value) }))} className="input" />
+              </div>
+              <div>
+                <label className="label">Kuota Pemakaian</label>
+                <input type="number" min="1" value={cvForm.kuota} onChange={(e) => setCvForm((f) => ({ ...f, kuota: Number(e.target.value) }))} className="input" />
+              </div>
+              <div>
+                <label className="label">Deskripsi (opsional)</label>
+                <textarea value={cvForm.deskripsi} onChange={(e) => setCvForm((f) => ({ ...f, deskripsi: e.target.value }))} className="input min-h-[60px] resize-none" rows={2} placeholder="Contoh: Voucher promo grand opening" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowCreateVoucher(false)} className="btn-secondary text-sm">Batal</button>
+                <button onClick={handleCreateVoucher} disabled={!cvForm.durasiHari || cvForm.durasiHari < 1} className="btn-primary text-sm">{cvLoading ? "Membuat..." : "Buat Voucher"}</button>
               </div>
             </div>
           </div>

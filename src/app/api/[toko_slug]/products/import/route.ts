@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: { toko_sl
 
       try {
         const existing = await prisma.product.findFirst({
-          where: { nama, tenantId, deletedAt: null },
+          where: { nama, tenantId, isActive: true },
         });
 
         if (existing) {

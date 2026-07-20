@@ -1,5 +1,6 @@
 // ============================================================
-// ADNTmarket.app — Registrasi Toko Baru + Invoice Sayabayar
+// ADNTmarket.app — Registrasi Toko Baru
+// Mendukung: pembayaran (plan) atau voucher
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,20 +11,20 @@ import { generateOrderId, createInvoice } from "@/lib/sayabayar";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { slug, namaToko, alamat, telepon, email, password, planId } = body;
+    const { slug, namaToko, alamat, telepon, email, password, planId, voucherCode } = body;
 
     // ── Validasi input ──────────────────────────────────────
-    if (!slug || !namaToko || !email || !password || !planId) {
+    if (!slug || !namaToko || !email || !password) {
       return NextResponse.json(
         { success: false, error: "Semua field harus diisi" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
         { success: false, error: "Password minimal 6 karakter" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     if (!slugRegex.test(slug)) {
       return NextResponse.json(
         { success: false, error: "Slug hanya boleh huruf kecil, angka, dan strip (3-30 karakter)" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (existingTenant) {
       return NextResponse.json(
         { success: false, error: "Slug sudah digunakan, pilih slug lain" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -49,23 +50,116 @@ export async function POST(req: NextRequest) {
     if (existingUser) {
       return NextResponse.json(
         { success: false, error: "Email sudah terdaftar" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
-    // ── Ambil paket ─────────────────────────────────────────
+    const now = new Date();
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // ── VOUCHER FLOW ────────────────────────────────────────
+    if (voucherCode) {
+      const voucher = await prisma.voucher.findUnique({
+        where: { kode: voucherCode.toUpperCase() },
+      });
+
+      if (!voucher) {
+        return NextResponse.json(
+          { success: false, error: "Voucher tidak ditemukan" },
+          { status: 400 },
+        );
+      }
+
+      if (!voucher.isActive) {
+        return NextResponse.json(
+          { success: false, error: "Voucher sudah tidak aktif" },
+          { status: 400 },
+        );
+      }
+
+      if (voucher.terpakai >= voucher.kuota) {
+        return NextResponse.json(
+          { success: false, error: "Kuota voucher sudah habis" },
+          { status: 400 },
+        );
+      }
+
+      // Buat tenant & user, langsung aktif
+      const result = await prisma.$transaction(async (tx) => {
+        const tenant = await tx.tenant.create({
+          data: {
+            slug,
+            namaToko,
+            alamat: alamat || null,
+            telepon: telepon || null,
+            statusAktif: true,
+            status: "AKTIF",
+            tanggalMulai: now,
+            tanggalKedaluwarsa: new Date(
+              now.getTime() + voucher.durasiHari * 24 * 60 * 60 * 1000,
+            ),
+          },
+        });
+
+        await tx.setting.create({
+          data: {
+            tenantId: tenant.id,
+            footerStruk: "Terima kasih telah berbelanja",
+            cetakStrukOtomatis: true,
+          },
+        });
+
+        await tx.user.create({
+          data: {
+            email,
+            passwordHash,
+            nama: `Admin ${namaToko}`,
+            role: "TENANT_ADMIN",
+            tenantId: tenant.id,
+            isActive: true,
+          },
+        });
+
+        // Increment pemakaian voucher
+        await tx.voucher.update({
+          where: { id: voucher.id },
+          data: { terpakai: voucher.terpakai + 1 },
+        });
+
+        return tenant;
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          tenant: {
+            slug: result.slug,
+            namaToko: result.namaToko,
+          },
+          voucher: true,
+          message: "Registrasi berhasil! Toko langsung aktif.",
+        },
+      });
+    }
+
+    // ── PLAN / PAYMENT FLOW (existing) ─────────────────────
+    if (!planId) {
+      return NextResponse.json(
+        { success: false, error: "Pilih paket atau masukkan kode voucher" },
+        { status: 400 },
+      );
+    }
+
     const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
     if (!plan || !plan.isActive) {
       return NextResponse.json(
         { success: false, error: "Paket tidak tersedia" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // ── Generate order ID & buat tenant ─────────────────────
-    const now = new Date();
     const orderId = generateOrderId();
-    const passwordHash = await bcrypt.hash(password, 12);
 
     const { tenant, payment } = await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
@@ -122,13 +216,12 @@ export async function POST(req: NextRequest) {
         amount: plan.harga,
         description: `Paket Sewa ${plan.nama} - ${namaToko}`,
         redirectUrl: `${rootUrl}/daftar/sukses?order_id=${orderId}`,
-        expiredMinutes: 1440, // 24 jam
+        expiredMinutes: 1440,
       });
 
       sayabayarPaymentUrl = invoice.data.payment_url;
       sayabayarInvoiceId = invoice.data.id;
 
-      // Simpan invoice info ke database
       await prisma.payment.update({
         where: { merchantOrderId: orderId },
         data: {
@@ -138,7 +231,6 @@ export async function POST(req: NextRequest) {
       });
     } catch (sayabayarError) {
       console.error("Sayabayar invoice error:", sayabayarError);
-      // Tetap lanjut — payment_url bisa dibuat ulang nanti
     }
 
     return NextResponse.json({
@@ -160,7 +252,7 @@ export async function POST(req: NextRequest) {
     console.error("Registrasi gagal:", error);
     return NextResponse.json(
       { success: false, error: "Registrasi gagal, coba lagi" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -112,6 +112,7 @@ export default function LaporanPage() {
             >
               Keluar
             </button>
+          </div>
         </div>
       </div>
 
